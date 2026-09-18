@@ -1,0 +1,35 @@
+{
+  "name": "EDP-Memory",
+  "description": "Deterministic memory-resource, topology, shared-reserve and object-pool abstractions for the ESPressio Development Platform",
+  "keywords": "espressio,memory,deterministic,pool,allocator,psram,embedded,composition",
+  "homepage": "https://espressio.org",
+  "authors": {
+    "name": "Simon Stuart",
+    "maintainer": true,
+    "url": "https://espressio.org"
+  },
+  "build": {
+    "flags": ["-std=gnu++17"],
+    "unflags": ["-std=gnu++11"]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ESPressio-Development-Platform/EDP-Memory.git"
+  },
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "frameworks": "*",
+  "platforms": "*",
+  "dependencies": [
+    {
+      "name": "EDP-System",
+      "version": "https://github.com/ESPressio-Development-Platform/EDP-System.git#main",
+      "platforms": "*"
+    },
+    {
+      "name": "EDP-Platform",
+      "version": "https://github.com/ESPressio-Development-Platform/EDP-Platform.git#main",
+      "platforms": "*"
+    }
+  ]
+}
