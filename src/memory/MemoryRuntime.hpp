@@ -183,15 +183,15 @@ namespace ESPressio::Memory::Detail {
             // Coordination lock.
 
             /// Acquires the topology coordination mutex indefinitely.
-            bool AcquireCoordinationLock() noexcept {
+            ESPressio::Platform::Synchronization::LockAcquireResult AcquireCoordinationLock() noexcept {
                 return _mutex->Acquire(
                     ESPressio::Platform::Synchronization::WaitTimeout::Forever()
-                ) == ESPressio::Platform::Synchronization::LockAcquireResult::Acquired;
+                );
             }
 
             /// Releases the topology coordination mutex.
-            bool ReleaseCoordinationLock() noexcept {
-                return _mutex->Release() == ESPressio::Platform::Synchronization::LockReleaseResult::Released;
+            ESPressio::Platform::Synchronization::LockReleaseResult ReleaseCoordinationLock() noexcept {
+                return _mutex->Release();
             }
 
 
@@ -238,13 +238,15 @@ namespace ESPressio::Memory::Detail {
 
             /// Attempts one shared allocation for a pool whose policy permits it.
             template<class TObjectPool>
-            bool TryClaimSharedLocked(
+            ObjectPoolCapacityClaimResult TryClaimSharedLocked(
                 TObjectPool& pool,
                 std::size_t& token
             ) noexcept {
                 using TObject = typename TObjectPool::ObjectType;
 
-                if (!pool.CanClaimShared()) { return false; }
+                if (!pool.CanClaimShared()) {
+                    return ObjectPoolCapacityClaimResult::CapacityUnavailable;
+                }
 
                 SharedAllocation allocation{};
                 const auto result = _sharedAllocator->Allocate(
@@ -253,31 +255,45 @@ namespace ESPressio::Memory::Detail {
                     allocation
                 );
 
-                if (result != SharedAllocationResult::Succeeded) { return false; }
+                if (
+                    result == SharedAllocationResult::CapacityUnavailable ||
+                    result == SharedAllocationResult::ContiguousCapacityUnavailable
+                ) {
+                    return ObjectPoolCapacityClaimResult::CapacityUnavailable;
+                }
+
+                if (result != SharedAllocationResult::Succeeded) {
+                    return ObjectPoolCapacityClaimResult::ProviderFailure;
+                }
 
                 if (
                     allocation.PayloadOffset == 0U ||
                     allocation.PayloadOffset > ObjectPoolToken::ValueMask
                 ) {
-                    static_cast<void>(
-                        _sharedAllocator->Release(allocation)
-                    );
-                    return false;
+                    const auto releaseResult = _sharedAllocator->Release(allocation);
+
+                    return releaseResult == SharedAllocationReleaseResult::Released
+                        ? ObjectPoolCapacityClaimResult::CapacityUnavailable
+                        : ObjectPoolCapacityClaimResult::ProviderFailure;
                 }
 
                 pool.ClaimShared();
                 token = ObjectPoolToken::Shared(allocation.PayloadOffset);
 
-                return true;
+                return ObjectPoolCapacityClaimResult::Claimed;
             }
 
             /// Attempts the locked dedicated-first acquisition policy for one Object Pool.
             template<class TObjectPool>
-            bool TryClaimLocked(
+            ObjectPoolCapacityClaimResult TryClaimLocked(
                 TObjectPool& pool,
                 std::size_t& token
             ) noexcept {
-                if (pool.TryClaimDedicated(token)) { return true; }
+                const auto dedicatedResult = pool.TryClaimDedicated(token);
+
+                if (dedicatedResult == ObjectPoolCapacityClaimResult::Claimed) {
+                    return dedicatedResult;
+                }
 
                 if constexpr (TObjectPool::Spec::Shared::IsEnabled) {
                     return TryClaimSharedLocked(
@@ -286,38 +302,39 @@ namespace ESPressio::Memory::Detail {
                     );
                 }
 
-                return false;
+                return dedicatedResult;
             }
 
             /// Releases a claimed token that has not had an object constructed into it.
             template<class TObjectPool>
-            void ReturnUnconstructedCapacityLocked(
+            ObjectPoolCapacityReturnResult ReturnUnconstructedCapacityLocked(
                 TObjectPool& pool,
                 std::size_t token
             ) noexcept {
                 if (ObjectPoolToken::IsShared(token)) {
                     const auto allocation = ObjectPoolToken::SharedAllocationFrom(token);
+                    const auto releaseResult = _sharedAllocator->Release(allocation);
 
-                    if (
-                        _sharedAllocator->Release(allocation) == SharedAllocationReleaseResult::Released
-                    ) {
-                        pool.ReleaseShared();
+                    if (releaseResult != SharedAllocationReleaseResult::Released) {
+                        return ObjectPoolCapacityReturnResult::ReleaseFailed;
                     }
 
-                    return;
+                    pool.ReleaseShared();
+                    return ObjectPoolCapacityReturnResult::Returned;
                 }
 
                 pool.ReleaseDedicated(token);
+                return ObjectPoolCapacityReturnResult::Returned;
             }
 
             /// Dispatches a capacity claim by runtime ObjectPoolSpec ordinal.
             template<std::size_t TIndex = 0U>
-            bool TryClaimByIndexLocked(
+            ObjectPoolCapacityClaimResult TryClaimByIndexLocked(
                 std::size_t objectPoolIndex,
                 std::size_t& token
             ) noexcept {
                 if constexpr (TIndex >= sizeof...(TObjectPoolSpecs)) {
-                    return false;
+                    return ObjectPoolCapacityClaimResult::ProviderFailure;
                 } else {
                     if (objectPoolIndex == TIndex) {
                         return TryClaimLocked(
@@ -335,20 +352,21 @@ namespace ESPressio::Memory::Detail {
 
             /// Dispatches return of an unconstructed reservation by ObjectPoolSpec ordinal.
             template<std::size_t TIndex = 0U>
-            void ReturnUnconstructedByIndexLocked(
+            ObjectPoolCapacityReturnResult ReturnUnconstructedByIndexLocked(
                 std::size_t objectPoolIndex,
                 std::size_t token
             ) noexcept {
-                if constexpr (TIndex < sizeof...(TObjectPoolSpecs)) {
+                if constexpr (TIndex >= sizeof...(TObjectPoolSpecs)) {
+                    return ObjectPoolCapacityReturnResult::ReleaseFailed;
+                } else {
                     if (objectPoolIndex == TIndex) {
-                        ReturnUnconstructedCapacityLocked(
+                        return ReturnUnconstructedCapacityLocked(
                             std::get<TIndex>(_objectPools),
                             token
                         );
-                        return;
                     }
 
-                    ReturnUnconstructedByIndexLocked<TIndex + 1U>(
+                    return ReturnUnconstructedByIndexLocked<TIndex + 1U>(
                         objectPoolIndex,
                         token
                     );
@@ -356,40 +374,66 @@ namespace ESPressio::Memory::Detail {
             }
 
             /// Grants capacity to waiting requests in oldest-satisfiable order.
-            void ServiceWaitersLocked() noexcept {
+            WaitRequestServiceResult ServiceWaitersLocked() noexcept {
+                auto serviceResult = WaitRequestServiceResult::Succeeded;
                 auto* request = _waitHead;
 
                 while (request != nullptr) {
                     auto* next = request->Next;
-                    std::size_t token = ObjectPoolToken::Empty();
 
-                    if (
-                        request->State == WaitRequestState::Waiting &&
-                        TryClaimByIndexLocked(
+                    if (request->State == WaitRequestState::Waiting) {
+                        std::size_t token = ObjectPoolToken::Empty();
+                        const auto claimResult = TryClaimByIndexLocked(
                             request->ObjectPoolIndex,
                             token
-                        )
-                    ) {
-                        request->Token = token;
-                        request->State = WaitRequestState::Granted;
-                        RemoveWaitRequest(*request);
+                        );
 
-                        const auto notifyResult = request->Signal.Notify();
+                        if (claimResult == ObjectPoolCapacityClaimResult::Claimed) {
+                            request->Token = token;
+                            request->State = WaitRequestState::Granted;
+                            RemoveWaitRequest(*request);
 
-                        if (notifyResult != ESPressio::Platform::Synchronization::SignalNotifyResult::Signaled) {
-                            request->State = WaitRequestState::Waiting;
-                            request->Token = ObjectPoolToken::Empty();
-                            ReturnUnconstructedByIndexLocked(
-                                request->ObjectPoolIndex,
-                                token
-                            );
-                            AppendWaitRequest(*request);
+                            const auto notifyResult = request->Signal.Notify();
+
+                            if (
+                                notifyResult !=
+                                ESPressio::Platform::Synchronization::SignalNotifyResult::Signaled
+                            ) {
+                                request->State = WaitRequestState::Waiting;
+                                request->Token = ObjectPoolToken::Empty();
+
+                                const auto returnResult = ReturnUnconstructedByIndexLocked(
+                                    request->ObjectPoolIndex,
+                                    token
+                                );
+
+                                AppendWaitRequest(*request);
+                                _coordinationFailed = true;
+                                serviceResult = WaitRequestServiceResult::ProviderFailure;
+
+                                if (returnResult != ObjectPoolCapacityReturnResult::Returned) {
+                                    serviceResult = WaitRequestServiceResult::ProviderFailure;
+                                }
+                            }
+                        } else if (claimResult == ObjectPoolCapacityClaimResult::ProviderFailure) {
+                            request->State = WaitRequestState::ProviderFailure;
+                            RemoveWaitRequest(*request);
                             _coordinationFailed = true;
+                            serviceResult = WaitRequestServiceResult::ProviderFailure;
+
+                            if (
+                                request->Signal.Notify() !=
+                                ESPressio::Platform::Synchronization::SignalNotifyResult::Signaled
+                            ) {
+                                serviceResult = WaitRequestServiceResult::ProviderFailure;
+                            }
                         }
                     }
 
                     request = next;
                 }
+
+                return serviceResult;
             }
 
 
@@ -425,9 +469,9 @@ namespace ESPressio::Memory::Detail {
 
             /// Releases every dedicated backing block in reverse declaration order.
             template<std::size_t TCount = sizeof...(TObjectPoolSpecs)>
-            bool ReleaseDedicatedPoolsReverse() noexcept {
+            MemoryReleaseResult ReleaseDedicatedPoolsReverse() noexcept {
                 if constexpr (TCount == 0U) {
-                    return true;
+                    return MemoryReleaseResult::Released;
                 } else {
                     constexpr std::size_t index = TCount - 1U;
                     using Spec = std::tuple_element_t<index, std::tuple<TObjectPoolSpecs...>>;
@@ -437,7 +481,7 @@ namespace ESPressio::Memory::Detail {
                     auto& resource = Resource<ResourceProvider>();
                     const auto result = pool.ReleaseDedicatedBacking(resource);
 
-                    if (result != MemoryReleaseResult::Released) { return false; }
+                    if (result != MemoryReleaseResult::Released) { return result; }
 
                     return ReleaseDedicatedPoolsReverse<index>();
                 }
@@ -521,7 +565,7 @@ namespace ESPressio::Memory::Detail {
                 const auto dedicatedResult = InitializeDedicatedPools(failure);
 
                 if (dedicatedResult != MemoryTopologyInitializationResult::Succeeded) {
-                    if (!ReleaseDedicatedPoolsReverse()) {
+                    if (ReleaseDedicatedPoolsReverse() != MemoryReleaseResult::Released) {
                         _state = MemoryTopologyState::InitializationFailed;
                         failure.Result = MemoryTopologyInitializationResult::RollbackFailed;
                         return failure.Result;
@@ -549,7 +593,7 @@ namespace ESPressio::Memory::Detail {
                         failure.ObjectPoolIndex = MemoryTopologyInitializationFailure::NoObjectPoolIndex;
                         failure.ResourceResult = allocationResult;
 
-                        if (!ReleaseDedicatedPoolsReverse()) {
+                        if (ReleaseDedicatedPoolsReverse() != MemoryReleaseResult::Released) {
                             _state = MemoryTopologyState::InitializationFailed;
                             failure.Result = MemoryTopologyInitializationResult::RollbackFailed;
                             return failure.Result;
@@ -568,11 +612,11 @@ namespace ESPressio::Memory::Detail {
 
                     if (allocatorResult != SharedReserveInitializationResult::Succeeded) {
                         const auto sharedReleaseResult = sharedResource.Release(_sharedReserveBlock);
-                        const auto dedicatedRollbackSucceeded = ReleaseDedicatedPoolsReverse();
+                        const auto dedicatedRollbackResult = ReleaseDedicatedPoolsReverse();
 
                         if (
                             sharedReleaseResult != MemoryReleaseResult::Released ||
-                            !dedicatedRollbackSucceeded
+                            dedicatedRollbackResult != MemoryReleaseResult::Released
                         ) {
                             _state = MemoryTopologyState::InitializationFailed;
                             failure.Result = MemoryTopologyInitializationResult::RollbackFailed;
@@ -600,7 +644,10 @@ namespace ESPressio::Memory::Detail {
                     return PendingAcquisitionCancellationResult::AlreadyCancelled;
                 }
 
-                if (!AcquireCoordinationLock()) {
+                if (
+                    AcquireCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
+                ) {
                     return PendingAcquisitionCancellationResult::ProviderFailure;
                 }
 
@@ -623,9 +670,12 @@ namespace ESPressio::Memory::Detail {
                     request = next;
                 }
 
-                const auto released = ReleaseCoordinationLock();
+                const auto releaseResult = ReleaseCoordinationLock();
 
-                if (!released || notificationFailed) {
+                if (
+                    releaseResult != ESPressio::Platform::Synchronization::LockReleaseResult::Released ||
+                    notificationFailed
+                ) {
                     _coordinationFailed = true;
                     return PendingAcquisitionCancellationResult::ProviderFailure;
                 }
@@ -643,7 +693,10 @@ namespace ESPressio::Memory::Detail {
                     return MemoryTopologyTeardownResult::TopologyUnavailable;
                 }
 
-                if (!AcquireCoordinationLock()) {
+                if (
+                    AcquireCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
+                ) {
                     return MemoryTopologyTeardownResult::TopologyUnavailable;
                 }
 
@@ -689,7 +742,7 @@ namespace ESPressio::Memory::Detail {
                     _sharedReserveBlock = MemoryBlock{};
                 }
 
-                if (!ReleaseDedicatedPoolsReverse()) {
+                if (ReleaseDedicatedPoolsReverse() != MemoryReleaseResult::Released) {
                     _state = MemoryTopologyState::TeardownFailed;
                     return MemoryTopologyTeardownResult::ProviderReleaseFailed;
                 }
@@ -761,27 +814,46 @@ namespace ESPressio::Memory::Detail {
             ) noexcept {
                 if (!lease.IsEmpty()) { return ObjectPoolAcquisitionResult::OutputLeaseOccupied; }
                 if (_state == MemoryTopologyState::Uninitialized) { return ObjectPoolAcquisitionResult::NotInitialized; }
-                if (_state != MemoryTopologyState::InitializedFrozen || _acquisitionsCancelled) {
+
+                if (
+                    _state != MemoryTopologyState::InitializedFrozen ||
+                    _acquisitionsCancelled
+                ) {
                     return ObjectPoolAcquisitionResult::TopologyUnavailable;
                 }
+
                 if (_coordinationFailed) { return ObjectPoolAcquisitionResult::ProviderFailure; }
 
-                if (!AcquireCoordinationLock()) { return ObjectPoolAcquisitionResult::ProviderFailure; }
+                if (
+                    AcquireCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
+                ) {
+                    return ObjectPoolAcquisitionResult::ProviderFailure;
+                }
 
-                if (_state != MemoryTopologyState::InitializedFrozen || _acquisitionsCancelled) {
-                    static_cast<void>(
-                        ReleaseCoordinationLock()
-                    );
-                    return ObjectPoolAcquisitionResult::TopologyUnavailable;
+                if (
+                    _state != MemoryTopologyState::InitializedFrozen ||
+                    _acquisitionsCancelled
+                ) {
+                    const auto releaseResult = ReleaseCoordinationLock();
+
+                    return releaseResult == ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                        ? ObjectPoolAcquisitionResult::TopologyUnavailable
+                        : ObjectPoolAcquisitionResult::ProviderFailure;
                 }
 
                 std::size_t token = ObjectPoolToken::Empty();
-
-                if (TryClaimLocked(
+                const auto claimResult = TryClaimLocked(
                     pool,
                     token
-                )) {
-                    if (!ReleaseCoordinationLock()) {
+                );
+
+                if (claimResult == ObjectPoolCapacityClaimResult::Claimed) {
+                    if (
+                        ReleaseCoordinationLock() !=
+                        ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                    ) {
+                        _coordinationFailed = true;
                         return ObjectPoolAcquisitionResult::ProviderFailure;
                     }
 
@@ -802,32 +874,55 @@ namespace ESPressio::Memory::Detail {
                     return ObjectPoolAcquisitionResult::Succeeded;
                 }
 
-                if (timeout.IsNoWait()) {
+                if (claimResult == ObjectPoolCapacityClaimResult::ProviderFailure) {
+                    _coordinationFailed = true;
                     static_cast<void>(
                         ReleaseCoordinationLock()
                     );
-                    return ObjectPoolAcquisitionResult::CapacityUnavailable;
+                    return ObjectPoolAcquisitionResult::ProviderFailure;
+                }
+
+                if (timeout.IsNoWait()) {
+                    const auto releaseResult = ReleaseCoordinationLock();
+
+                    return releaseResult == ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                        ? ObjectPoolAcquisitionResult::CapacityUnavailable
+                        : ObjectPoolAcquisitionResult::ProviderFailure;
                 }
 
                 WaitRequestType request;
                 request.ObjectPoolIndex = TTopology::template ObjectPoolIndex<TObject>;
                 AppendWaitRequest(request);
 
-                if (!ReleaseCoordinationLock()) {
+                if (
+                    ReleaseCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                ) {
+                    RemoveWaitRequest(request);
+                    _coordinationFailed = true;
                     return ObjectPoolAcquisitionResult::ProviderFailure;
                 }
 
                 const auto waitResult = request.Signal.Wait(timeout);
 
-                if (!AcquireCoordinationLock()) {
+                if (
+                    AcquireCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
+                ) {
+                    _coordinationFailed = true;
                     return ObjectPoolAcquisitionResult::ProviderFailure;
                 }
 
                 if (request.State == WaitRequestState::Granted) {
                     token = request.Token;
-                    static_cast<void>(
-                        ReleaseCoordinationLock()
-                    );
+
+                    if (
+                        ReleaseCoordinationLock() !=
+                        ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                    ) {
+                        _coordinationFailed = true;
+                        return ObjectPoolAcquisitionResult::ProviderFailure;
+                    }
 
                     auto* object = ResolveObject<TObject>(
                         pool,
@@ -847,18 +942,27 @@ namespace ESPressio::Memory::Detail {
                 }
 
                 if (request.State == WaitRequestState::Cancelled) {
+                    const auto releaseResult = ReleaseCoordinationLock();
+
+                    return releaseResult == ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                        ? ObjectPoolAcquisitionResult::TopologyUnavailable
+                        : ObjectPoolAcquisitionResult::ProviderFailure;
+                }
+
+                if (request.State == WaitRequestState::ProviderFailure) {
                     static_cast<void>(
                         ReleaseCoordinationLock()
                     );
-                    return ObjectPoolAcquisitionResult::TopologyUnavailable;
+                    return ObjectPoolAcquisitionResult::ProviderFailure;
                 }
 
                 RemoveWaitRequest(request);
-                static_cast<void>(
-                    ReleaseCoordinationLock()
-                );
+                const auto releaseResult = ReleaseCoordinationLock();
 
-                if (waitResult == ESPressio::Platform::Synchronization::SignalWaitResult::ProviderFailure) {
+                if (
+                    releaseResult != ESPressio::Platform::Synchronization::LockReleaseResult::Released ||
+                    waitResult == ESPressio::Platform::Synchronization::SignalWaitResult::ProviderFailure
+                ) {
                     return ObjectPoolAcquisitionResult::ProviderFailure;
                 }
 
@@ -908,11 +1012,20 @@ namespace ESPressio::Memory::Detail {
                 if (ObjectPoolToken::IsEmpty(token)) { return ObjectPoolLeaseReleaseResult::AlreadyEmpty; }
 
                 if (!ObjectPoolToken::IsDestroyed(token)) {
-                    if (!AcquireCoordinationLock()) { return ObjectPoolLeaseReleaseResult::ProviderFailure; }
+                    if (
+                        AcquireCoordinationLock() !=
+                        ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
+                    ) {
+                        return ObjectPoolLeaseReleaseResult::ProviderFailure;
+                    }
 
-                    static_cast<void>(
-                        ReleaseCoordinationLock()
-                    );
+                    if (
+                        ReleaseCoordinationLock() !=
+                        ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                    ) {
+                        _coordinationFailed = true;
+                        return ObjectPoolLeaseReleaseResult::ProviderFailure;
+                    }
 
                     auto* object = ResolveObject<TObject>(
                         pool,
@@ -923,13 +1036,17 @@ namespace ESPressio::Memory::Detail {
                     token = ObjectPoolToken::MarkDestroyed(token);
                 }
 
-                if (!AcquireCoordinationLock()) { return ObjectPoolLeaseReleaseResult::ProviderFailure; }
+                if (
+                    AcquireCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
+                ) { return ObjectPoolLeaseReleaseResult::ProviderFailure; }
 
                 if (ObjectPoolToken::IsShared(token)) {
                     const auto allocation = ObjectPoolToken::SharedAllocationFrom(token);
                     const auto result = _sharedAllocator->Release(allocation);
 
                     if (result != SharedAllocationReleaseResult::Released) {
+                        _coordinationFailed = true;
                         static_cast<void>(
                             ReleaseCoordinationLock()
                         );
@@ -941,12 +1058,18 @@ namespace ESPressio::Memory::Detail {
                     pool.ReleaseDedicated(token);
                 }
 
-                ServiceWaitersLocked();
-                const auto released = ReleaseCoordinationLock();
-
-                if (!released) { return ObjectPoolLeaseReleaseResult::ProviderFailure; }
-
+                const auto serviceResult = ServiceWaitersLocked();
+                const auto releaseResult = ReleaseCoordinationLock();
                 token = ObjectPoolToken::Empty();
+
+                if (
+                    serviceResult != WaitRequestServiceResult::Succeeded ||
+                    releaseResult != ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                ) {
+                    _coordinationFailed = true;
+                    return ObjectPoolLeaseReleaseResult::ProviderFailure;
+                }
+
                 return ObjectPoolLeaseReleaseResult::Released;
             }
 

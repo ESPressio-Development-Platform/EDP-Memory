@@ -9,6 +9,21 @@
 
 namespace ESPressio::Memory::Detail {
 
+    /// Outcome from attempting to claim one bounded Object Pool capacity slot.
+    enum class ObjectPoolCapacityClaimResult : std::uint8_t {
+        Claimed = 0,
+        CapacityUnavailable = 1,
+        ProviderFailure = 2
+    };
+
+
+    /// Outcome from returning a previously claimed but unconstructed Object Pool capacity slot.
+    enum class ObjectPoolCapacityReturnResult : std::uint8_t {
+        Returned = 0,
+        ReleaseFailed = 1
+    };
+
+
     /// Empty dedicated state used when an Object Pool reserves no dedicated instances.
     template<class TObject, std::size_t TCount>
     class DedicatedObjectPoolState;
@@ -20,16 +35,18 @@ namespace ESPressio::Memory::Detail {
 
         public:
 
+            // Dedicated occupancy.
+
             /// Reports that this pool has no dedicated live objects.
             bool HasLiveDedicatedObjects() const noexcept {
                 return false;
             }
 
             /// Reports that no dedicated slot can be claimed.
-            bool TryClaimDedicated(
+            ObjectPoolCapacityClaimResult TryClaimDedicated(
                 std::size_t&
             ) noexcept {
-                return false;
+                return ObjectPoolCapacityClaimResult::CapacityUnavailable;
             }
 
             /// Ignores release because no dedicated slot exists.
@@ -38,12 +55,16 @@ namespace ESPressio::Memory::Detail {
             ) noexcept {
             }
 
+            // Dedicated address resolution.
+
             /// Returns null because no dedicated slot exists.
             TObject* DedicatedAddress(
                 std::size_t
             ) noexcept {
                 return nullptr;
             }
+
+            // Dedicated backing lifecycle.
 
             /// Performs no allocation for a zero-capacity dedicated pool.
             template<class TMemoryResourceProvider>
@@ -83,6 +104,8 @@ namespace ESPressio::Memory::Detail {
             /// One occupancy bit per dedicated object slot.
             std::array<std::uint8_t, (TCount + 7U) / 8U> _occupancy{};
 
+            // Occupancy helpers.
+
             /// Reports whether one dedicated slot is occupied.
             bool IsOccupied(
                 std::size_t slotIndex
@@ -111,6 +134,8 @@ namespace ESPressio::Memory::Detail {
             }
 
         public:
+
+            // Dedicated backing lifecycle.
 
             /// Acquires exactly one contiguous backing allocation for every dedicated slot.
             template<class TMemoryResourceProvider>
@@ -154,8 +179,10 @@ namespace ESPressio::Memory::Detail {
                 return result;
             }
 
+            // Dedicated occupancy.
+
             /// Claims the lowest-index vacant dedicated slot.
-            bool TryClaimDedicated(
+            ObjectPoolCapacityClaimResult TryClaimDedicated(
                 std::size_t& slotIndex
             ) noexcept {
                 for (std::size_t index = 0U; index < TCount; ++index) {
@@ -165,11 +192,11 @@ namespace ESPressio::Memory::Detail {
                             true
                         );
                         slotIndex = index;
-                        return true;
+                        return ObjectPoolCapacityClaimResult::Claimed;
                     }
                 }
 
-                return false;
+                return ObjectPoolCapacityClaimResult::CapacityUnavailable;
             }
 
             /// Returns one previously claimed dedicated slot to the vacant set.
@@ -184,6 +211,8 @@ namespace ESPressio::Memory::Detail {
                 }
             }
 
+            // Dedicated address resolution.
+
             /// Resolves the object address for one dedicated slot.
             TObject* DedicatedAddress(
                 std::size_t slotIndex
@@ -196,6 +225,8 @@ namespace ESPressio::Memory::Detail {
                     bytes + (slotIndex * sizeof(TObject))
                 );
             }
+
+            // Dedicated inspection.
 
             /// Reports whether any dedicated slot is currently claimed.
             bool HasLiveDedicatedObjects() const noexcept {
@@ -221,6 +252,8 @@ namespace ESPressio::Memory::Detail {
     class SharedObjectPoolQuotaState<TSharedPolicy, false> {
 
         public:
+
+            // Shared quota operations.
 
             /// Reports whether this policy permits attempting a shared allocation.
             bool CanClaimShared() const noexcept {
@@ -250,6 +283,8 @@ namespace ESPressio::Memory::Detail {
             std::uint8_t _count = 0U;
 
         public:
+
+            // Shared quota operations.
 
             /// Reports whether another shared instance is permitted by the configured quota.
             bool CanClaimShared() const noexcept {

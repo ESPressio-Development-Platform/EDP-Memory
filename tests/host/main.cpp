@@ -725,6 +725,26 @@ namespace {
         assert(runtime.State() == Memory::MemoryTopologyState::Uninitialized);
     }
 
+
+    /// Validates that failed rollback is surfaced as a fatal initialization lifecycle state.
+    void TestInitializationRollbackFailure() {
+        Resource resource;
+        resource.FailAllocationAt(2U);
+        resource.FailRelease(true);
+        TestSupport::TestMutexProvider mutex;
+        MemoryComposition::ProviderFor<Memory::SharedReserveAllocationAlgorithm> allocator;
+        Runtime runtime(
+            mutex,
+            allocator,
+            resource
+        );
+        Memory::MemoryTopologyInitializationFailure failure;
+
+        const auto result = runtime.Initialize(failure);
+        assert(result == Memory::MemoryTopologyInitializationResult::RollbackFailed);
+        assert(runtime.State() == Memory::MemoryTopologyState::InitializationFailed);
+    }
+
 } // anonymous
 
 /// Runs the complete EDP-Memory host validation suite.
@@ -734,6 +754,7 @@ int main() {
     TestUncappedSharedOverflow();
     TestWaitingAndCancellation();
     TestInitializationRollback();
+    TestInitializationRollbackFailure();
 
     return 0;
 }

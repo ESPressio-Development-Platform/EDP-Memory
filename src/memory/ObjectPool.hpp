@@ -138,15 +138,18 @@ namespace ESPressio::Memory {
             }
 
             /// Attempts to claim one dedicated slot and returns its encoded ownership token.
-            bool TryClaimDedicated(
+            Detail::ObjectPoolCapacityClaimResult TryClaimDedicated(
                 std::size_t& token
             ) noexcept {
                 std::size_t slotIndex = 0U;
+                const auto result = DedicatedState::TryClaimDedicated(slotIndex);
 
-                if (!DedicatedState::TryClaimDedicated(slotIndex)) { return false; }
+                if (result != Detail::ObjectPoolCapacityClaimResult::Claimed) {
+                    return result;
+                }
 
                 token = Detail::ObjectPoolToken::Dedicated(slotIndex);
-                return true;
+                return Detail::ObjectPoolCapacityClaimResult::Claimed;
             }
 
             /// Reports whether a shared allocation may be attempted under this pool's policy/quota.

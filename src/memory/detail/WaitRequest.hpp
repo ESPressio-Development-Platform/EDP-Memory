@@ -9,7 +9,15 @@ namespace ESPressio::Memory::Detail {
     enum class WaitRequestState : std::uint8_t {
         Waiting = 0,
         Granted = 1,
-        Cancelled = 2
+        Cancelled = 2,
+        ProviderFailure = 3
+    };
+
+
+    /// Outcome from servicing pending wait requests after capacity becomes available.
+    enum class WaitRequestServiceResult : std::uint8_t {
+        Succeeded = 0,
+        ProviderFailure = 1
     };
 
 
