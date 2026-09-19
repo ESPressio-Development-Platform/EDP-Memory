@@ -31,6 +31,8 @@ namespace ESPressio::Memory {
 
         private:
 
+            // Object Pool Type metadata.
+
             /// Dedicated slot state for this Object Pool.
             using DedicatedState = Detail::DedicatedObjectPoolState<
                 TObject,

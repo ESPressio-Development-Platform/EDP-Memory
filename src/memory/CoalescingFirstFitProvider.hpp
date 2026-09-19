@@ -22,6 +22,8 @@ namespace ESPressio::Memory {
 
         private:
 
+            // In-band block representation.
+
             /// In-band header describing one contiguous span of the shared reserve.
             struct BlockHeader final {
 

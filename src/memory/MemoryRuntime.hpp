@@ -54,6 +54,8 @@ namespace ESPressio::Memory::Detail {
 
         private:
 
+            // Runtime Type metadata.
+
             /// Concrete self Type used to bind ObjectPool facades.
             using Self = MemoryRuntimeImpl;
 
@@ -76,6 +78,8 @@ namespace ESPressio::Memory::Detail {
 
             /// Intrusive wait request Type used only while a caller is blocked.
             using WaitRequestType = WaitRequest<TSignalProvider>;
+
+            // Compile-time contract validation.
 
             static_assert(
                 std::is_same_v<typename TMemoryComposition::CompositionDomain, Domain>,
@@ -500,6 +504,8 @@ namespace ESPressio::Memory::Detail {
             }
 
         public:
+
+            // Public Type metadata.
 
             /// Complete compile-time topology represented by this runtime.
             using Topology = TTopology;
