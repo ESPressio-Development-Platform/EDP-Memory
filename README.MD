@@ -77,3 +77,7 @@ Complete teardown is first-class. It refuses while live pooled objects remain. O
 ## Testing
 
 Host coverage validates the default shared allocator, pool lifetime, quotas, waiting/cancellation, rollback, teardown/reinitialize, compact lease representation, and compile-fail topology/lifetime constraints. Platform concrete providers maintain their own provider-specific coverage in their owning repositories.
+
+## C++ Language Baseline
+
+ESPressio requires C++20. PlatformIO-compatible ESP32 demos use the maintained PIOArduino platform package so Arduino-ESP32 and ESP-IDF builds use a current C++20-capable toolchain baseline.
