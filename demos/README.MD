@@ -10,3 +10,7 @@
 Each logical demo provides Arduino IDE, PlatformIO Arduino and PlatformIO ESP-IDF surfaces as required by ESPressio policy.
 
 The demos deliberately use `EDP-Platform-Portable` as the concrete provider selection for Standard C++ Memory operations plus Mutex/Signal coordination. They contain no diagnostic framework, background worker, service locator, or hidden allocation policy.
+
+## C++ Language Baseline
+
+All PlatformIO-compatible demos require C++20 and explicitly select the maintained PIOArduino ESP32 platform package.
