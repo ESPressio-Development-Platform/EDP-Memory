@@ -15,7 +15,7 @@ namespace ESPressio::Memory::Detail {
     struct ByteOperationsProviderTraits {
 
         static_assert(
-            TByteOperationsProvider::CompositionCapabilities::template Contains<ByteOperations>,
+            TByteOperationsProvider::CompositionOffers::template Contains<ByteOperations>,
             "ByteOperations provider must supply the ByteOperations capability"
         );
 

@@ -11,7 +11,7 @@ namespace ESPressio::Memory::Detail {
     template<class... TProviders>
     inline constexpr std::size_t SharedAllocatorProviderCountV = (
         std::size_t{0U} + ... + (
-            TProviders::CompositionCapabilities::template Contains<SharedReserveAllocationAlgorithm>
+            TProviders::CompositionOffers::template Contains<SharedReserveAllocationAlgorithm>
                 ? std::size_t{1U}
                 : std::size_t{0U}
         )

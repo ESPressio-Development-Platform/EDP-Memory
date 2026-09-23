@@ -14,7 +14,7 @@ namespace ESPressio::Memory::Detail {
     struct MemoryResourceProviderTraits {
 
         static_assert(
-            TMemoryResourceProvider::CompositionCapabilities::template Contains<MemoryResource>,
+            TMemoryResourceProvider::CompositionOffers::template Contains<MemoryResource>,
             "MemoryResource provider must supply the MemoryResource capability"
         );
 

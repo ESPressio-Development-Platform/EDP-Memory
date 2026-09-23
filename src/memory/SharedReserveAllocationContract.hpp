@@ -14,7 +14,7 @@ namespace ESPressio::Memory::Detail {
     struct SharedReserveAllocationProviderTraits {
 
         static_assert(
-            TSharedReserveAllocationProvider::CompositionCapabilities::template Contains<SharedReserveAllocationAlgorithm>,
+            TSharedReserveAllocationProvider::CompositionOffers::template Contains<SharedReserveAllocationAlgorithm>,
             "Shared-reserve allocator provider must supply SharedReserveAllocationAlgorithm"
         );
 
