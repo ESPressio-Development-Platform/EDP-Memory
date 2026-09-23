@@ -78,6 +78,16 @@ Complete teardown is first-class. It refuses while live pooled objects remain. O
 
 Host coverage validates the default shared allocator, pool lifetime, quotas, waiting/cancellation, rollback, teardown/reinitialize, compact lease representation, and compile-fail topology/lifetime constraints. Platform concrete providers maintain their own provider-specific coverage in their owning repositories.
 
+The host runner executes functional and compile-fail coverage without sanitizers by default. Optional sanitizer passes are selected explicitly through `EDP_MEMORY_SANITIZER_MODE`:
+
+```bash
+EDP_MEMORY_SANITIZER_MODE=undefined ./tests/run_host_tests.sh
+EDP_MEMORY_SANITIZER_MODE=address ./tests/run_host_tests.sh
+EDP_MEMORY_SANITIZER_MODE=address,undefined ./tests/run_host_tests.sh
+```
+
+This keeps functional validation independent from host-toolchain sanitizer-runtime availability while retaining explicit ASan/UBSan coverage where the installed compiler/runtime supports it.
+
 ## C++ Language Baseline
 
 ESPressio requires C++20. PlatformIO-compatible ESP32 demos use the maintained PIOArduino platform package so Arduino-ESP32 and ESP-IDF builds use a current C++20-capable toolchain baseline.
