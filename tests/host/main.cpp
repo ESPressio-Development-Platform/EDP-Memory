@@ -375,6 +375,7 @@ namespace {
 
     namespace Memory = ESPressio::Memory;
     namespace Platform = ESPressio::Platform;
+    namespace Framework = ESPressio::System::CompositionFramework;
 
     using Resource = TestSupport::TestMemoryResourceProvider;
     using MemoryComposition = Memory::MemoryComposition<Resource>;
