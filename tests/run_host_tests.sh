@@ -22,9 +22,64 @@ COMMON_FLAGS=(
     -I"${PLATFORM_DIR}/src"
 )
 
-"${CXX}"     "${COMMON_FLAGS[@]}"     -fsanitize=address,undefined     -fno-omit-frame-pointer     "${ROOT_DIR}/tests/host/main.cpp"     -o "${BUILD_DIR}/host-tests"
+SANITIZER_MODE="${EDP_MEMORY_SANITIZER_MODE:-}"
 
-"${BUILD_DIR}/host-tests"
+if [[ "${EDP_MEMORY_SANITIZERS:-0}" == "1" && -z "${SANITIZER_MODE}" ]]; then
+    SANITIZER_MODE="address,undefined"
+fi
+
+compile_host_tests() {
+    "${CXX}" \
+        "${COMMON_FLAGS[@]}" \
+        "$@" \
+        "${ROOT_DIR}/tests/host/main.cpp" \
+        -o "${BUILD_DIR}/host-tests"
+}
+
+case "${SANITIZER_MODE}" in
+    "")
+        echo "EDP-Memory host runtime tests: compiling"
+        compile_host_tests
+        ;;
+    address)
+        echo "EDP-Memory host runtime tests: compiling (ASan)"
+        compile_host_tests \
+            -g \
+            -fno-omit-frame-pointer \
+            -fsanitize=address
+        ;;
+    undefined)
+        echo "EDP-Memory host runtime tests: compiling (UBSan)"
+        compile_host_tests \
+            -g \
+            -fno-omit-frame-pointer \
+            -fsanitize=undefined
+        ;;
+    address,undefined)
+        echo "EDP-Memory host runtime tests: compiling (ASan+UBSan)"
+        compile_host_tests \
+            -g \
+            -fno-omit-frame-pointer \
+            -fsanitize=address,undefined
+        ;;
+    *)
+        echo "Unsupported EDP_MEMORY_SANITIZER_MODE: ${SANITIZER_MODE}" >&2
+        echo "Use: address, undefined, or address,undefined" >&2
+        exit 2
+        ;;
+esac
+
+echo "EDP-Memory host runtime tests: executing"
+
+if [[ -n "${SANITIZER_MODE}" ]]; then
+    ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:abort_on_error=1}" \
+    UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}" \
+        "${BUILD_DIR}/host-tests"
+else
+    "${BUILD_DIR}/host-tests"
+fi
+
+echo "EDP-Memory compile-fail tests: validating"
 
 for source in "${ROOT_DIR}"/tests/compile_fail/*.cpp
 do
