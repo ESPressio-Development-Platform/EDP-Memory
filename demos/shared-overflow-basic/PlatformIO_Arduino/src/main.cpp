@@ -50,8 +50,9 @@ namespace Demo {
     >;
 
     using Composition = ESPressio::Memory::MemoryComposition<Resource>;
-    using Allocator = typename Composition::template ProviderFor<
-        ESPressio::Memory::SharedReserveAllocationAlgorithm
+    using Allocator = typename Composition::template Select<
+        ESPressio::Memory::SharedReserveAllocationRequirement,
+        ESPressio::System::CompositionFramework::SelectUnique
     >;
     using Runtime = ESPressio::Memory::MemoryRuntime<
         Topology,
