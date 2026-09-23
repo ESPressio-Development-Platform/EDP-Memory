@@ -2,6 +2,7 @@
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
+#include <cstdio>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
@@ -750,12 +751,25 @@ namespace {
 
 /// Runs the complete EDP-Memory host validation suite.
 int main() {
+    std::fprintf(stderr, "[EDP-Memory] TestSharedAllocator\n");
     TestSharedAllocator();
+
+    std::fprintf(stderr, "[EDP-Memory] TestObjectPoolLifecycle\n");
     TestObjectPoolLifecycle();
+
+    std::fprintf(stderr, "[EDP-Memory] TestUncappedSharedOverflow\n");
     TestUncappedSharedOverflow();
+
+    std::fprintf(stderr, "[EDP-Memory] TestWaitingAndCancellation\n");
     TestWaitingAndCancellation();
+
+    std::fprintf(stderr, "[EDP-Memory] TestInitializationRollback\n");
     TestInitializationRollback();
+
+    std::fprintf(stderr, "[EDP-Memory] TestInitializationRollbackFailure\n");
     TestInitializationRollbackFailure();
+
+    std::fprintf(stderr, "[EDP-Memory] host runtime tests PASS\n");
 
     return 0;
 }
