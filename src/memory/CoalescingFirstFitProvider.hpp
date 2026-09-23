@@ -15,7 +15,7 @@ namespace ESPressio::Memory {
     /// live payloads are never moved, and release immediately coalesces adjacent free spans.
     class CoalescingFirstFitProvider final : public Framework::Provider<
         Domain,
-        Framework::Provides<
+        Framework::Offers<
             Framework::Offer<SharedReserveAllocationAlgorithm>
         >
     > {

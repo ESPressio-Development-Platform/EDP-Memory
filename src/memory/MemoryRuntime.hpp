@@ -60,7 +60,10 @@ namespace ESPressio::Memory::Detail {
             using Self = MemoryRuntimeImpl;
 
             /// Shared-reserve allocation provider selected by the Memory Composition.
-            using SharedAllocatorProvider = typename TMemoryComposition::template ProviderFor<SharedReserveAllocationAlgorithm>;
+            using SharedAllocatorProvider = typename TMemoryComposition::template Select<
+                SharedReserveAllocationRequirement,
+                ESPressio::System::CompositionFramework::SelectUnique
+            >;
 
             /// Platform Mutex contract selected for topology coordination.
             using MutexContract = ESPressio::Platform::Synchronization::Detail::MutexProviderTraits<TMutexProvider>;
@@ -104,27 +107,30 @@ namespace ESPressio::Memory::Detail {
             );
 
             static_assert(
-                ProviderListContains<
-                    typename TTopology::DefaultMemoryResourceProvider,
-                    ESPressio::System::CompositionFramework::ProviderList<TMemoryResourceProviders...>
-                >::value,
+                ESPressio::System::CompositionFramework::ProviderList<
+                    TMemoryResourceProviders...
+                >::template Contains<
+                    typename TTopology::DefaultMemoryResourceProvider
+                >,
                 "Topology default MemoryResource provider must be present in the Memory Composition"
             );
 
             static_assert(
-                ProviderListContains<
-                    typename TTopology::SharedReserveSpec::ResourceProvider,
-                    ESPressio::System::CompositionFramework::ProviderList<TMemoryResourceProviders...>
-                >::value,
+                ESPressio::System::CompositionFramework::ProviderList<
+                    TMemoryResourceProviders...
+                >::template Contains<
+                    typename TTopology::SharedReserveSpec::ResourceProvider
+                >,
                 "Shared reserve MemoryResource provider must be present in the Memory Composition"
             );
 
             static_assert(
                 (
-                    ProviderListContains<
-                        typename TTopology::template ResourceProviderFor<TObjectPoolSpecs>,
-                        ESPressio::System::CompositionFramework::ProviderList<TMemoryResourceProviders...>
-                    >::value && ...
+                    ESPressio::System::CompositionFramework::ProviderList<
+                        TMemoryResourceProviders...
+                    >::template Contains<
+                        typename TTopology::template ResourceProviderFor<TObjectPoolSpecs>
+                    > && ...
                 ),
                 "Every ObjectPool dedicated MemoryResource provider must be present in the Memory Composition"
             );
@@ -1105,7 +1111,7 @@ namespace ESPressio::Memory {
         TMemoryComposition,
         TMutexProvider,
         TSignalProvider,
-        typename TMemoryComposition::template ProvidersFor<MemoryResource>,
+        typename TMemoryComposition::template Matches<MemoryResourceRequirement>,
         typename TTopology::ObjectPoolSpecs
     >;
 

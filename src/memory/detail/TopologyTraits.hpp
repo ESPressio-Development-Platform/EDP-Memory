@@ -122,15 +122,5 @@ namespace ESPressio::Memory::Detail {
     inline constexpr bool AnySharedOverflowEnabledV = (false || ... || TObjectPoolSpecs::Shared::IsEnabled);
 
 
-    /// Indicates whether a provider list contains a specific provider Type.
-    template<class TProvider, class TProviderList>
-    struct ProviderListContains;
-
-
-    /// Checks one Composition ProviderList for a specific provider Type.
-    template<class TProvider, class... TProviders>
-    struct ProviderListContains<TProvider, ESPressio::System::CompositionFramework::ProviderList<TProviders...>> : std::bool_constant<
-        ContainsTypeV<TProvider, TProviders...>
-    > {};
 
 } // ESPressio::Memory::Detail

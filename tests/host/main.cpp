@@ -2,6 +2,7 @@
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
+#include <cstdio>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
@@ -19,7 +20,7 @@ namespace TestSupport {
     /// Heap-backed deterministic test resource with injectable allocation/release failures.
     class TestMemoryResourceProvider final : public Framework::Provider<
         Memory::Domain,
-        Framework::Provides<
+        Framework::Offers<
             Framework::Offer<Memory::MemoryResource>
         >
     > {
@@ -116,7 +117,7 @@ namespace TestSupport {
     /// Standard-library-backed Mutex provider used only by host tests.
     class TestMutexProvider final : public Framework::Provider<
         Platform::Domain,
-        Framework::Provides<
+        Framework::Offers<
             Framework::Offer<
                 Platform::Synchronization::Mutex,
                 Framework::PropertyValue<
@@ -180,7 +181,7 @@ namespace TestSupport {
     /// Targeted condition-variable Signal provider instantiated on each blocked caller stack.
     class TestSignalProvider final : public Framework::Provider<
         Platform::Domain,
-        Framework::Provides<
+        Framework::Offers<
             Framework::Offer<
                 Platform::Synchronization::Signal,
                 Framework::PropertyValue<
@@ -375,6 +376,7 @@ namespace {
 
     namespace Memory = ESPressio::Memory;
     namespace Platform = ESPressio::Platform;
+    namespace Framework = ESPressio::System::CompositionFramework;
 
     using Resource = TestSupport::TestMemoryResourceProvider;
     using MemoryComposition = Memory::MemoryComposition<Resource>;
@@ -408,7 +410,7 @@ namespace {
 
     static_assert(
         std::is_same_v<
-            MemoryComposition::ProviderFor<Memory::SharedReserveAllocationAlgorithm>,
+            MemoryComposition::Select<Memory::SharedReserveAllocationRequirement, Framework::SelectUnique>,
             Memory::CoalescingFirstFitProvider
         >,
         "MemoryComposition must inject CoalescingFirstFitProvider when Bootstrap supplies no alternative"
@@ -504,7 +506,7 @@ namespace {
     void TestObjectPoolLifecycle() {
         Resource resource;
         TestSupport::TestMutexProvider mutex;
-        MemoryComposition::ProviderFor<Memory::SharedReserveAllocationAlgorithm> allocator;
+        MemoryComposition::Select<Memory::SharedReserveAllocationRequirement, Framework::SelectUnique> allocator;
         Runtime runtime(
             mutex,
             allocator,
@@ -572,7 +574,7 @@ namespace {
     void TestUncappedSharedOverflow() {
         Resource resource;
         TestSupport::TestMutexProvider mutex;
-        MemoryComposition::ProviderFor<Memory::SharedReserveAllocationAlgorithm> allocator;
+        MemoryComposition::Select<Memory::SharedReserveAllocationRequirement, Framework::SelectUnique> allocator;
         Runtime runtime(
             mutex,
             allocator,
@@ -618,7 +620,7 @@ namespace {
     void TestWaitingAndCancellation() {
         Resource resource;
         TestSupport::TestMutexProvider mutex;
-        MemoryComposition::ProviderFor<Memory::SharedReserveAllocationAlgorithm> allocator;
+        MemoryComposition::Select<Memory::SharedReserveAllocationRequirement, Framework::SelectUnique> allocator;
         Runtime runtime(
             mutex,
             allocator,
@@ -710,7 +712,7 @@ namespace {
         Resource resource;
         resource.FailAllocationAt(2U);
         TestSupport::TestMutexProvider mutex;
-        MemoryComposition::ProviderFor<Memory::SharedReserveAllocationAlgorithm> allocator;
+        MemoryComposition::Select<Memory::SharedReserveAllocationRequirement, Framework::SelectUnique> allocator;
         Runtime runtime(
             mutex,
             allocator,
@@ -732,7 +734,7 @@ namespace {
         resource.FailAllocationAt(2U);
         resource.FailRelease(true);
         TestSupport::TestMutexProvider mutex;
-        MemoryComposition::ProviderFor<Memory::SharedReserveAllocationAlgorithm> allocator;
+        MemoryComposition::Select<Memory::SharedReserveAllocationRequirement, Framework::SelectUnique> allocator;
         Runtime runtime(
             mutex,
             allocator,
@@ -749,12 +751,25 @@ namespace {
 
 /// Runs the complete EDP-Memory host validation suite.
 int main() {
+    std::fprintf(stderr, "[EDP-Memory] TestSharedAllocator\n");
     TestSharedAllocator();
+
+    std::fprintf(stderr, "[EDP-Memory] TestObjectPoolLifecycle\n");
     TestObjectPoolLifecycle();
+
+    std::fprintf(stderr, "[EDP-Memory] TestUncappedSharedOverflow\n");
     TestUncappedSharedOverflow();
+
+    std::fprintf(stderr, "[EDP-Memory] TestWaitingAndCancellation\n");
     TestWaitingAndCancellation();
+
+    std::fprintf(stderr, "[EDP-Memory] TestInitializationRollback\n");
     TestInitializationRollback();
+
+    std::fprintf(stderr, "[EDP-Memory] TestInitializationRollbackFailure\n");
     TestInitializationRollbackFailure();
+
+    std::fprintf(stderr, "[EDP-Memory] host runtime tests PASS\n");
 
     return 0;
 }

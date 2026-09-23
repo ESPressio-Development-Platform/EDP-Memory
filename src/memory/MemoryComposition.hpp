@@ -21,4 +21,19 @@ namespace ESPressio::Memory {
     /// Exclusive capability supplying the shared-reserve suballocation algorithm.
     struct SharedReserveAllocationAlgorithm final : Framework::ExclusiveCapability<Domain> {};
 
+
+    /// Same-domain Requirement selecting the unique shared-reserve allocation algorithm.
+    using SharedReserveAllocationRequirement = Framework::Requirement<
+        SharedReserveAllocationAlgorithm,
+        Framework::RequirementScope::SameDomain,
+        Framework::ExactlyProviders<1U>
+    >;
+
+    /// Same-domain Requirement selecting all MemoryResource providers.
+    using MemoryResourceRequirement = Framework::Requirement<
+        MemoryResource,
+        Framework::RequirementScope::SameDomain,
+        Framework::AtLeastProviders<1U>
+    >;
+
 } // ESPressio::Memory
