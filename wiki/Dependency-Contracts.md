@@ -2,6 +2,8 @@
 
 EDP-Memory depends on **EDP-System** and **EDP-Platform**.
 
+For Arduino IDE / Arduino CLI compatibility, EDP-Memory enters the Platform dependency through the public `<ESPressio_Platform.hpp>` umbrella rather than cross-library `<synchronization/...>` implementation paths. This preserves the same dependency edge while allowing Arduino's recursive library resolver to discover EDP-Platform before Platform contracts are referenced.
+
 ## EDP-System
 
 The Memory domain and all provider selection use the EDP-System Composition Framework.
