@@ -4,7 +4,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <synchronization/WaitTimeout.hpp>
+#include <ESPressio_Platform.hpp>
 
 #include "MemoryTypes.hpp"
 #include "ObjectPoolLease.hpp"

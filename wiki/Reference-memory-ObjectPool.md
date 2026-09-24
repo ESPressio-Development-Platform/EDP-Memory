@@ -2,16 +2,16 @@
 
 **Primary classification:** PUBLIC API
 
-**Source baseline:** `35475501654b39cc2b8a9f2032a00e9d30fa3058`
+**Source baseline:** `68ba27e5cfc30fdbc43237c4c08557e79f25c5d3`
 
-[Open exact source](https://github.com/ESPressio-Development-Platform/EDP-Memory/blob/35475501654b39cc2b8a9f2032a00e9d30fa3058/src/memory/ObjectPool.hpp)
+[Open exact source](https://github.com/ESPressio-Development-Platform/EDP-Memory/blob/68ba27e5cfc30fdbc43237c4c08557e79f25c5d3/src/memory/ObjectPool.hpp)
 
 ## Direct includes
 
+- `ESPressio_Platform.hpp`
 - `cstddef`
 - `type_traits`
 - `utility`
-- `synchronization/WaitTimeout.hpp`
 - `MemoryTypes.hpp`
 - `ObjectPoolLease.hpp`
 - `detail/ObjectPoolState.hpp`

@@ -48,6 +48,9 @@ EDP-Memory
 
 There are no optional ESPressio-library dependencies.
 
+Arduino IDE / Arduino CLI consumers discover the mandatory EDP-Platform dependency through its public `<ESPressio_Platform.hpp>` umbrella. Public EDP-Memory headers do not reach directly into another ESPressio library's internal `src/<subdirectory>/...` paths, because doing so bypasses Arduino's recursive library dependency discovery.
+
+
 See [DEPENDENCY_GRAPH.MD](./DEPENDENCY_GRAPH.MD) for the maintained dependency graph and provider-direction notes.
 
 ## Determinism
