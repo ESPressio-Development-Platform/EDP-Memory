@@ -6,9 +6,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <synchronization/SynchronizationContracts.hpp>
-#include <synchronization/SynchronizationTypes.hpp>
-#include <synchronization/WaitTimeout.hpp>
+#include <ESPressio_Platform.hpp>
 
 #include "MemoryComposition.hpp"
 #include "MemoryResourceContract.hpp"
