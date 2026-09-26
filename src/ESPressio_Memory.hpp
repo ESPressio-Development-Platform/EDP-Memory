@@ -2,6 +2,7 @@
 #include "memory/MemoryComposition.hpp"
 #include "memory/MemoryTypes.hpp"
 #include "memory/ByteOperationsContract.hpp"
+#include "memory/ObjectLifetime.hpp"
 #include "memory/MemoryResourceContract.hpp"
 #include "memory/SharedReserveAllocationContract.hpp"
 #include "memory/CoalescingFirstFitProvider.hpp"
