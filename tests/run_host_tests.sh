@@ -36,31 +36,34 @@ compile_host_tests() {
         -o "${BUILD_DIR}/host-tests"
 }
 
+compile_object_lifetime_tests() {
+    "${CXX}" \
+        "${COMMON_FLAGS[@]}" \
+        "$@" \
+        "${ROOT_DIR}/tests/host/object_lifetime.cpp" \
+        -o "${BUILD_DIR}/object-lifetime-tests"
+}
+
 case "${SANITIZER_MODE}" in
     "")
         echo "EDP-Memory host runtime tests: compiling"
         compile_host_tests
+        compile_object_lifetime_tests
         ;;
     address)
         echo "EDP-Memory host runtime tests: compiling (ASan)"
-        compile_host_tests \
-            -g \
-            -fno-omit-frame-pointer \
-            -fsanitize=address
+        compile_host_tests -g -fno-omit-frame-pointer -fsanitize=address
+        compile_object_lifetime_tests -g -fno-omit-frame-pointer -fsanitize=address
         ;;
     undefined)
         echo "EDP-Memory host runtime tests: compiling (UBSan)"
-        compile_host_tests \
-            -g \
-            -fno-omit-frame-pointer \
-            -fsanitize=undefined
+        compile_host_tests -g -fno-omit-frame-pointer -fsanitize=undefined
+        compile_object_lifetime_tests -g -fno-omit-frame-pointer -fsanitize=undefined
         ;;
     address,undefined)
         echo "EDP-Memory host runtime tests: compiling (ASan+UBSan)"
-        compile_host_tests \
-            -g \
-            -fno-omit-frame-pointer \
-            -fsanitize=address,undefined
+        compile_host_tests -g -fno-omit-frame-pointer -fsanitize=address,undefined
+        compile_object_lifetime_tests -g -fno-omit-frame-pointer -fsanitize=address,undefined
         ;;
     *)
         echo "Unsupported EDP_MEMORY_SANITIZER_MODE: ${SANITIZER_MODE}" >&2
@@ -75,8 +78,12 @@ if [[ -n "${SANITIZER_MODE}" ]]; then
     ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:abort_on_error=1}" \
     UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}" \
         "${BUILD_DIR}/host-tests"
+    ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:abort_on_error=1}" \
+    UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}" \
+        "${BUILD_DIR}/object-lifetime-tests"
 else
     "${BUILD_DIR}/host-tests"
+    "${BUILD_DIR}/object-lifetime-tests"
 fi
 
 echo "EDP-Memory compile-fail tests: validating"
