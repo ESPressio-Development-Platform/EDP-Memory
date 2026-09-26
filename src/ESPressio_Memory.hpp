@@ -3,6 +3,7 @@
 #include "memory/MemoryTypes.hpp"
 #include "memory/ByteOperationsContract.hpp"
 #include "memory/ObjectLifetime.hpp"
+#include "memory/OwnershipTransfer.hpp"
 #include "memory/MemoryResourceContract.hpp"
 #include "memory/SharedReserveAllocationContract.hpp"
 #include "memory/CoalescingFirstFitProvider.hpp"
