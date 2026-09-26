@@ -21,8 +21,21 @@ add_executable(
     host/main.cpp
 )
 
+add_executable(
+    edp_memory_object_lifetime_tests
+    host/object_lifetime.cpp
+)
+
 target_include_directories(
     edp_memory_host_tests
+    PRIVATE
+        ../src
+        ${EDP_SYSTEM_SOURCE_DIR}/src
+        ${EDP_PLATFORM_SOURCE_DIR}/src
+)
+
+target_include_directories(
+    edp_memory_object_lifetime_tests
     PRIVATE
         ../src
         ${EDP_SYSTEM_SOURCE_DIR}/src
@@ -38,6 +51,15 @@ target_link_libraries(
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(
         edp_memory_host_tests
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+            -Werror
+    )
+
+    target_compile_options(
+        edp_memory_object_lifetime_tests
         PRIVATE
             -Wall
             -Wextra
