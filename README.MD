@@ -9,6 +9,9 @@ Its purpose is to make memory cost an application design decision: application B
 - [Byte Operations and Memory Resources](./docs/BYTE-OPERATIONS-AND-RESOURCES.MD)  
   Defines raw byte-operation and aligned-memory resource contracts, provider ownership boundaries, and allocation/release semantics.
 
+- [Typed Object Lifetime Operations](./docs/OBJECT-LIFETIME-OPERATIONS.MD)  
+  Defines allocation-free typed construction, move-construction/ownership transfer, and destruction in caller-supplied storage.
+
 - [Memory Topology](./docs/MEMORY-TOPOLOGY.MD)  
   Defines compile-time Object Pool configuration, resource binding, transactional initialization, topology freeze, and mode-transition teardown.
 
@@ -25,6 +28,7 @@ Its purpose is to make memory cost an application design decision: application B
 
 ```text
 ByteOperations                     raw copy / move / fill / compare abstraction
+ObjectLifetime                     typed construct / move-construct / destroy abstraction
 MemoryResource                     shared raw aligned allocation capability
 SharedReserveAllocationAlgorithm   substitutable bounded suballocator capability
 MemoryTopology                     compile-time immutable topology declaration
@@ -34,6 +38,8 @@ ObjectPoolable<T>                  optional zero-state acquisition convenience
 MemoryRuntime                      synchronous initialization, waiting, cancellation, teardown
 CoalescingFirstFitProvider         default bounded shared-reserve allocator
 ```
+
+`ObjectLifetime` does not allocate storage. It centralizes deterministic C++ object-lifetime transitions for storage already owned by a consumer and requires the selected construction, move-construction, and destruction operations to be non-throwing. Raw `ByteOperations::Move` remains a byte-range operation and is not a substitute for moving arbitrary typed objects.
 
 `EDP-Memory` does not implement platform-specific system allocation APIs. Concrete ownership follows the API actually used: Standard C/C++ implementations belong to `EDP-Platform-Portable`; ESP-IDF-specific heap/PSRAM implementations belong to `EDP-Platform-ESP-IDF`; other Platform repositories provide Memory concretes only when the underlying API genuinely belongs there.
 
@@ -50,7 +56,6 @@ There are no optional ESPressio-library dependencies.
 
 Arduino IDE / Arduino CLI consumers discover the mandatory EDP-Platform dependency through its public `<ESPressio_Platform.hpp>` umbrella. Public EDP-Memory headers do not reach directly into another ESPressio library's internal `src/<subdirectory>/...` paths, because doing so bypasses Arduino's recursive library dependency discovery.
 
-
 See [DEPENDENCY_GRAPH.MD](./DEPENDENCY_GRAPH.MD) for the maintained dependency graph and provider-direction notes.
 
 ## Determinism
@@ -59,6 +64,7 @@ See [DEPENDENCY_GRAPH.MD](./DEPENDENCY_GRAPH.MD) for the maintained dependency g
 - Dedicated capacities are exact and are never silently reduced.
 - The shared reserve is one fixed configured byte region; its configured bytes include allocator metadata and alignment padding.
 - Pooled construction performs no second EDP-Memory allocation after a slot/shared span has been claimed.
+- Typed lifetime transitions allocate no storage and require non-throwing construction/move/destruction contracts.
 - Live objects are never relocated or compacted.
 - Waiters allocate no heap state; their temporary request and Signal live on the blocked caller's existing stack.
 - Production runtime stores no historical diagnostics solely for developer telemetry.
@@ -79,7 +85,7 @@ Complete teardown is first-class. It refuses while live pooled objects remain. O
 
 ## Testing
 
-Host coverage validates the default shared allocator, pool lifetime, quotas, waiting/cancellation, rollback, teardown/reinitialize, compact lease representation, and compile-fail topology/lifetime constraints. Platform concrete providers maintain their own provider-specific coverage in their owning repositories.
+Host coverage validates typed object lifetime operations, the default shared allocator, pool lifetime, quotas, waiting/cancellation, rollback, teardown/reinitialize, compact lease representation, and compile-fail topology/lifetime constraints. Platform concrete providers maintain their own provider-specific coverage in their owning repositories.
 
 The host runner executes functional and compile-fail coverage without sanitizers by default. Optional sanitizer passes are selected explicitly through `EDP_MEMORY_SANITIZER_MODE`:
 
