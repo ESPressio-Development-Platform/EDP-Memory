@@ -1,7 +1,8 @@
 # EDP-Memory Dependency Graph
 
-> Revalidated: 2026-09-24 — Arduino dependency-discovery correction changes include entry points only; EDP-System and EDP-Platform remain the same mandatory dependencies and no dependency edge changed.
+> Revalidated: 2026-09-27 — Command-architecture typed object-lifetime and ownership-transfer abstractions add no dependency edge; EDP-System and EDP-Platform remain the same mandatory dependencies.
 
+> Revalidated: 2026-09-24 — Arduino dependency-discovery correction changes include entry points only; EDP-System and EDP-Platform remain the same mandatory dependencies and no dependency edge changed.
 
 > Revalidated: 2026-09-23 — Composition Framework enhancement migration changes compile-time provider/requirement metadata and validation only; no ESPressio-library dependency edge changed.
 
