@@ -2,9 +2,18 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKSPACE="$(cd "${ROOT_DIR}/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/tests/.test-build"
-SYSTEM_DIR="${EDP_SYSTEM_SOURCE_DIR:?EDP_SYSTEM_SOURCE_DIR must point at an EDP-System checkout}"
-PLATFORM_DIR="${EDP_PLATFORM_SOURCE_DIR:?EDP_PLATFORM_SOURCE_DIR must point at an EDP-Platform checkout}"
+SYSTEM_DIR="${EDP_SYSTEM_SOURCE_DIR:-${WORKSPACE}/EDP-System}"
+PLATFORM_DIR="${EDP_PLATFORM_SOURCE_DIR:-${WORKSPACE}/EDP-Platform}"
+
+for dependency in "${SYSTEM_DIR}" "${PLATFORM_DIR}"; do
+    if [[ ! -d "${dependency}/src" ]]; then
+        echo "Missing dependency checkout: ${dependency}" >&2
+        echo "Clone EDP-System and EDP-Platform beside EDP-Memory, or set EDP_SYSTEM_SOURCE_DIR / EDP_PLATFORM_SOURCE_DIR." >&2
+        exit 2
+    fi
+done
 
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
