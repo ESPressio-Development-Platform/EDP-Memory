@@ -807,6 +807,201 @@ namespace ESPressio::Memory::Detail {
             template<class, class, class>
             friend class ESPressio::Memory::ObjectPool;
 
+            // Dedicated indexed object ownership.
+
+            /// Acquires and constructs one TObject from the dedicated capacity of its statically known pool.
+            ///
+            /// This path never waits and never consumes shared overflow. The caller retains only the pool's
+            /// compact strongly typed DedicatedIndex while the Memory runtime remains the storage/lifetime owner.
+            ///
+            /// @tparam TObject Object Type managed by the target Object Pool.
+            /// @tparam TObjectPool Concrete Object Pool Type bound to this runtime.
+            /// @tparam TArguments Constructor argument Types forwarded to TObject.
+            template<
+                class TObject,
+                class TObjectPool,
+                class... TArguments
+            >
+            DedicatedObjectPoolAcquisitionResult AcquireDedicatedObject(
+                TObjectPool& pool,
+                typename TObjectPool::DedicatedIndex& index,
+                TArguments&&... arguments
+            ) noexcept {
+                using DedicatedIndex = typename TObjectPool::DedicatedIndex;
+
+                if (index.IsValid()) {
+                    return DedicatedObjectPoolAcquisitionResult::OutputIndexOccupied;
+                }
+
+                if (_state == MemoryTopologyState::Uninitialized) {
+                    return DedicatedObjectPoolAcquisitionResult::NotInitialized;
+                }
+
+                if (
+                    _state != MemoryTopologyState::InitializedFrozen ||
+                    _acquisitionsCancelled
+                ) {
+                    return DedicatedObjectPoolAcquisitionResult::TopologyUnavailable;
+                }
+
+                if (_coordinationFailed) {
+                    return DedicatedObjectPoolAcquisitionResult::ProviderFailure;
+                }
+
+                if (
+                    AcquireCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
+                ) {
+                    return DedicatedObjectPoolAcquisitionResult::ProviderFailure;
+                }
+
+                if (
+                    _state != MemoryTopologyState::InitializedFrozen ||
+                    _acquisitionsCancelled
+                ) {
+                    const auto releaseResult = ReleaseCoordinationLock();
+
+                    return releaseResult == ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                        ? DedicatedObjectPoolAcquisitionResult::TopologyUnavailable
+                        : DedicatedObjectPoolAcquisitionResult::ProviderFailure;
+                }
+
+                std::size_t slotIndex = 0U;
+                const auto claimResult = pool.TryClaimDedicatedIndex(
+                    slotIndex
+                );
+
+                if (claimResult == ObjectPoolCapacityClaimResult::CapacityUnavailable) {
+                    const auto releaseResult = ReleaseCoordinationLock();
+
+                    return releaseResult == ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                        ? DedicatedObjectPoolAcquisitionResult::CapacityUnavailable
+                        : DedicatedObjectPoolAcquisitionResult::ProviderFailure;
+                }
+
+                if (claimResult != ObjectPoolCapacityClaimResult::Claimed) {
+                    _coordinationFailed = true;
+                    static_cast<void>(
+                        ReleaseCoordinationLock()
+                    );
+                    return DedicatedObjectPoolAcquisitionResult::ProviderFailure;
+                }
+
+                if (
+                    ReleaseCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                ) {
+                    _coordinationFailed = true;
+                    return DedicatedObjectPoolAcquisitionResult::ProviderFailure;
+                }
+
+                auto* object = pool.DedicatedAddressAt(
+                    slotIndex
+                );
+
+                ::new (static_cast<void*>(object)) TObject(
+                    std::forward<TArguments>(arguments)...
+                );
+
+                index = DedicatedIndex::FromUnchecked(
+                    slotIndex
+                );
+
+                return DedicatedObjectPoolAcquisitionResult::Succeeded;
+            }
+
+            /// Destroys one indexed dedicated TObject and returns its slot to normal pool capacity.
+            ///
+            /// Destruction executes outside the Memory coordination mutex, matching the ordinary lease release
+            /// path. A provider failure after destruction poisons coordination and invalidates the caller index
+            /// rather than permitting a second destructor invocation.
+            ///
+            /// @tparam TObject Object Type managed by the target Object Pool.
+            /// @tparam TObjectPool Concrete Object Pool Type bound to this runtime.
+            template<class TObject, class TObjectPool>
+            DedicatedObjectPoolReleaseResult ReleaseDedicatedObject(
+                TObjectPool& pool,
+                typename TObjectPool::DedicatedIndex& index
+            ) noexcept {
+                using DedicatedIndex = typename TObjectPool::DedicatedIndex;
+
+                if (!index.IsValid()) {
+                    return DedicatedObjectPoolReleaseResult::InvalidIndex;
+                }
+
+                if (_state == MemoryTopologyState::Uninitialized) {
+                    return DedicatedObjectPoolReleaseResult::NotInitialized;
+                }
+
+                if (_state != MemoryTopologyState::InitializedFrozen) {
+                    return DedicatedObjectPoolReleaseResult::TopologyUnavailable;
+                }
+
+                if (_coordinationFailed) {
+                    return DedicatedObjectPoolReleaseResult::ProviderFailure;
+                }
+
+                const auto slotIndex = static_cast<std::size_t>(
+                    index.Value()
+                );
+
+                if (
+                    AcquireCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
+                ) {
+                    return DedicatedObjectPoolReleaseResult::ProviderFailure;
+                }
+
+                if (!pool.IsDedicatedOccupied(slotIndex)) {
+                    const auto releaseResult = ReleaseCoordinationLock();
+
+                    return releaseResult == ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                        ? DedicatedObjectPoolReleaseResult::SlotNotOwned
+                        : DedicatedObjectPoolReleaseResult::ProviderFailure;
+                }
+
+                if (
+                    ReleaseCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                ) {
+                    _coordinationFailed = true;
+                    return DedicatedObjectPoolReleaseResult::ProviderFailure;
+                }
+
+                auto* object = pool.DedicatedAddressAt(
+                    slotIndex
+                );
+                object->~TObject();
+
+                if (
+                    AcquireCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
+                ) {
+                    _coordinationFailed = true;
+                    index = DedicatedIndex::Invalid();
+                    return DedicatedObjectPoolReleaseResult::ProviderFailure;
+                }
+
+                pool.ReleaseDedicatedIndex(
+                    slotIndex
+                );
+
+                const auto serviceResult = ServiceWaitersLocked();
+                const auto releaseResult = ReleaseCoordinationLock();
+                index = DedicatedIndex::Invalid();
+
+                if (
+                    serviceResult != WaitRequestServiceResult::Succeeded ||
+                    releaseResult != ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                ) {
+                    _coordinationFailed = true;
+                    return DedicatedObjectPoolReleaseResult::ProviderFailure;
+                }
+
+                return DedicatedObjectPoolReleaseResult::Released;
+            }
+
+
             // Object acquisition.
 
             /// Acquires, constructs, and publishes one TObject into an output lease.

@@ -14,6 +14,10 @@ if(NOT DEFINED EDP_PLATFORM_SOURCE_DIR)
     message(FATAL_ERROR "EDP_PLATFORM_SOURCE_DIR must point at an EDP-Platform checkout")
 endif()
 
+if(NOT DEFINED EDP_BOUNDED_TOPOLOGY_SOURCE_DIR)
+    message(FATAL_ERROR "EDP_BOUNDED_TOPOLOGY_SOURCE_DIR must point at an EDP-BoundedTopology checkout")
+endif()
+
 find_package(Threads REQUIRED)
 
 add_executable(
@@ -32,6 +36,7 @@ target_include_directories(
         ../src
         ${EDP_SYSTEM_SOURCE_DIR}/src
         ${EDP_PLATFORM_SOURCE_DIR}/src
+        ${EDP_BOUNDED_TOPOLOGY_SOURCE_DIR}/src
 )
 
 target_include_directories(
@@ -40,6 +45,7 @@ target_include_directories(
         ../src
         ${EDP_SYSTEM_SOURCE_DIR}/src
         ${EDP_PLATFORM_SOURCE_DIR}/src
+        ${EDP_BOUNDED_TOPOLOGY_SOURCE_DIR}/src
 )
 
 target_link_libraries(

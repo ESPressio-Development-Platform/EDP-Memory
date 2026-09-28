@@ -18,6 +18,9 @@ Its purpose is to make memory cost an application design decision: application B
 - [Object Pools and Lifetimes](./docs/OBJECT-POOLS-AND-LIFETIMES.MD)  
   Defines raw-slot reservation, `ObjectPool`, move-only `ObjectPoolLease`, construction/destruction requirements, nested pool guidance, and stable addresses.
 
+- [Indexed Dedicated Object Pools](./docs/INDEXED-DEDICATED-OBJECT-POOLS.MD)
+  Defines one-byte strongly indexed dedicated-slot ownership for statically known pools without retaining a pointer-bearing lease.
+
 - [Shared Reserve Allocation](./docs/SHARED-RESERVE-ALLOCATION.MD)  
   Defines the substitutable shared allocator contract and the default in-band coalescing-first-fit implementation.
 
@@ -34,6 +37,7 @@ SharedReserveAllocationAlgorithm   substitutable bounded suballocator capability
 MemoryTopology                     compile-time immutable topology declaration
 ObjectPool<T,...>                  dedicated-first typed object capacity
 ObjectPoolLease<T,...>             move-only RAII ownership token
+ObjectPool::DedicatedIndex          one-byte strong dedicated-slot ownership identity
 ObjectPoolable<T>                  optional zero-state acquisition convenience
 MemoryRuntime                      synchronous initialization, waiting, cancellation, teardown
 CoalescingFirstFitProvider         default bounded shared-reserve allocator
@@ -48,13 +52,14 @@ CoalescingFirstFitProvider         default bounded shared-reserve allocator
 ```text
 EDP-Memory
 ├── EDP-System [mandatory]
-└── EDP-Platform [mandatory]
-    └── EDP-System [mandatory, transitive]
+├── EDP-Platform [mandatory]
+│   └── EDP-System [mandatory, transitive]
+└── EDP-BoundedTopology [mandatory]
 ```
 
-There are no optional ESPressio-library dependencies.
+There are no optional ESPressio-library dependencies. `EDP-BoundedTopology` supplies the strong bounded index used by compact dedicated Object Pool ownership; EDP-Memory does not duplicate that finite-identity primitive.
 
-Arduino IDE / Arduino CLI consumers discover the mandatory EDP-Platform dependency through its public `<ESPressio_Platform.hpp>` umbrella. Public EDP-Memory headers do not reach directly into another ESPressio library's internal `src/<subdirectory>/...` paths, because doing so bypasses Arduino's recursive library dependency discovery.
+Arduino IDE / Arduino CLI consumers discover the mandatory EDP-Platform and EDP-BoundedTopology dependencies through its public `<ESPressio_Platform.hpp>` umbrella. Public EDP-Memory headers do not reach directly into another ESPressio library's internal `src/<subdirectory>/...` paths, because doing so bypasses Arduino's recursive library dependency discovery.
 
 See [DEPENDENCY_GRAPH.MD](./DEPENDENCY_GRAPH.MD) for the maintained dependency graph and provider-direction notes.
 
@@ -85,7 +90,7 @@ Complete teardown is first-class. It refuses while live pooled objects remain. O
 
 ## Testing
 
-Host coverage validates typed object lifetime operations, the default shared allocator, pool lifetime, quotas, waiting/cancellation, rollback, teardown/reinitialize, compact lease representation, and compile-fail topology/lifetime constraints. Platform concrete providers maintain their own provider-specific coverage in their owning repositories.
+Host coverage validates typed object lifetime operations, the default shared allocator, pool lifetime, compact indexed dedicated ownership, quotas, waiting/cancellation, rollback, teardown/reinitialize, compact lease/index representation, and compile-fail topology/lifetime constraints. Platform concrete providers maintain their own provider-specific coverage in their owning repositories.
 
 The host runner executes functional and compile-fail coverage without sanitizers by default. Optional sanitizer passes are selected explicitly through `EDP_MEMORY_SANITIZER_MODE`:
 

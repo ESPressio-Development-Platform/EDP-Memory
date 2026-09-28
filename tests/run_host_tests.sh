@@ -6,11 +6,12 @@ WORKSPACE="$(cd "${ROOT_DIR}/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/tests/.test-build"
 SYSTEM_DIR="${EDP_SYSTEM_SOURCE_DIR:-${WORKSPACE}/EDP-System}"
 PLATFORM_DIR="${EDP_PLATFORM_SOURCE_DIR:-${WORKSPACE}/EDP-Platform}"
+BOUNDED_TOPOLOGY_DIR="${EDP_BOUNDED_TOPOLOGY_SOURCE_DIR:-${WORKSPACE}/EDP-BoundedTopology}"
 
-for dependency in "${SYSTEM_DIR}" "${PLATFORM_DIR}"; do
+for dependency in "${SYSTEM_DIR}" "${PLATFORM_DIR}" "${BOUNDED_TOPOLOGY_DIR}"; do
     if [[ ! -d "${dependency}/src" ]]; then
         echo "Missing dependency checkout: ${dependency}" >&2
-        echo "Clone EDP-System and EDP-Platform beside EDP-Memory, or set EDP_SYSTEM_SOURCE_DIR / EDP_PLATFORM_SOURCE_DIR." >&2
+        echo "Clone EDP-System, EDP-Platform, and EDP-BoundedTopology beside EDP-Memory, or set their source-directory environment variables." >&2
         exit 2
     fi
 done
@@ -29,6 +30,7 @@ COMMON_FLAGS=(
     -I"${ROOT_DIR}/src"
     -I"${SYSTEM_DIR}/src"
     -I"${PLATFORM_DIR}/src"
+    -I"${BOUNDED_TOPOLOGY_DIR}/src"
 )
 
 SANITIZER_MODE="${EDP_MEMORY_SANITIZER_MODE:-}"

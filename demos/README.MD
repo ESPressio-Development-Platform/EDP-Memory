@@ -14,3 +14,10 @@ The demos deliberately use `EDP-Platform-Portable` as the concrete provider sele
 ## C++ Language Baseline
 
 All PlatformIO-compatible demos require C++20 and explicitly select the maintained PIOArduino ESP32 platform package.
+
+## Indexed dedicated ownership
+
+The `object-pool-basic` demo now exercises both ownership forms: ordinary move-only `ObjectPoolLease` and compact `ObjectPool::DedicatedIndex` acquisition/access/release. The indexed path is dedicated-only and never consumes shared overflow.
+### `indexed-object-pool-basic`
+
+Demonstrates the compact dedicated-only ownership path: acquire one nothrow object into exact dedicated capacity, retain only the one-byte strong `DedicatedIndex`, resolve the stable live object, release the slot, and observe index invalidation. It intentionally performs no shared fallback and no wait.

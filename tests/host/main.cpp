@@ -427,6 +427,31 @@ namespace {
     );
 
     static_assert(
+        sizeof(PooledObjectPool::DedicatedIndex) == 1U,
+        "Dedicated Object Pool index must remain one byte for capacities up to 255"
+    );
+
+    static_assert(
+        PooledObjectPool::DedicatedIndex::Capacity() == 1U,
+        "Dedicated Object Pool index capacity must exactly match the configured dedicated capacity"
+    );
+
+    using MaximumDedicatedIndexPool = Memory::ObjectPool<
+        TestSupport::DedicatedOnlyObject,
+        Memory::ObjectPoolSpec<
+            TestSupport::DedicatedOnlyObject,
+            Memory::DedicatedInstances<255U>
+        >,
+        Runtime
+    >;
+
+    static_assert(
+        sizeof(MaximumDedicatedIndexPool::DedicatedIndex) == 1U &&
+        MaximumDedicatedIndexPool::DedicatedIndex::Capacity() == 255U,
+        "The locked 255-slot dedicated capacity must still use exactly one byte of compact identity"
+    );
+
+    static_assert(
         !std::is_copy_constructible_v<PooledLease> &&
         !std::is_copy_assignable_v<PooledLease> &&
         std::is_move_constructible_v<PooledLease> &&
@@ -567,6 +592,184 @@ namespace {
 
         assert(runtime.Initialize(failure) == Memory::MemoryTopologyInitializationResult::Succeeded);
         assert(runtime.TearDown() == Memory::MemoryTopologyTeardownResult::Succeeded);
+    }
+
+
+    /// Validates compact dedicated-only ownership without a pointer-bearing lease or shared fallback.
+    void TestIndexedDedicatedObjectPool() {
+        Resource resource;
+        TestSupport::TestMutexProvider mutex;
+        MemoryComposition::Select<Memory::SharedReserveAllocationRequirement, Framework::SelectUnique> allocator;
+        Runtime runtime(
+            mutex,
+            allocator,
+            resource
+        );
+        Memory::MemoryTopologyInitializationFailure failure;
+
+        assert(
+            runtime.Initialize(
+                failure
+            ) == Memory::MemoryTopologyInitializationResult::Succeeded
+        );
+
+        auto& pool = runtime.ObjectPoolFor<TestSupport::PooledObject>();
+        using Pool = Runtime::ObjectPoolType<TestSupport::PooledObject>;
+        Pool::DedicatedIndex first;
+        Pool::DedicatedIndex unavailable;
+
+        assert(!first.IsValid());
+        assert(
+            pool.AcquireDedicated(
+                first,
+                41
+            ) == Memory::DedicatedObjectPoolAcquisitionResult::Succeeded
+        );
+        assert(first.IsValid());
+        assert(first.Value() == 0U);
+        assert(pool.DedicatedObject(first).Value() == 41);
+        assert(TestSupport::PooledObject::LiveCount.load() == 1);
+
+        assert(
+            pool.AcquireDedicated(
+                first,
+                42
+            ) == Memory::DedicatedObjectPoolAcquisitionResult::OutputIndexOccupied
+        );
+
+        assert(
+            pool.AcquireDedicated(
+                unavailable,
+                43
+            ) == Memory::DedicatedObjectPoolAcquisitionResult::CapacityUnavailable
+        );
+        assert(!unavailable.IsValid());
+        assert(TestSupport::PooledObject::LiveCount.load() == 1);
+
+        PooledLease genericLease;
+        assert(
+            pool.Acquire(
+                genericLease,
+                Platform::Synchronization::WaitTimeout::NoWait(),
+                44
+            ) == Memory::ObjectPoolAcquisitionResult::Succeeded
+        );
+        assert(genericLease->Value() == 44);
+        assert(TestSupport::PooledObject::LiveCount.load() == 2);
+        assert(
+            genericLease.Release() ==
+            Memory::ObjectPoolLeaseReleaseResult::Released
+        );
+
+        assert(
+            pool.ReleaseDedicated(
+                first
+            ) == Memory::DedicatedObjectPoolReleaseResult::Released
+        );
+        assert(!first.IsValid());
+        assert(TestSupport::PooledObject::LiveCount.load() == 0);
+        assert(
+            pool.ReleaseDedicated(
+                first
+            ) == Memory::DedicatedObjectPoolReleaseResult::InvalidIndex
+        );
+
+        auto unowned = Pool::DedicatedIndex::FromUnchecked(
+            0U
+        );
+        assert(
+            pool.ReleaseDedicated(
+                unowned
+            ) == Memory::DedicatedObjectPoolReleaseResult::SlotNotOwned
+        );
+        assert(unowned.IsValid());
+
+        assert(
+            runtime.TearDown() ==
+            Memory::MemoryTopologyTeardownResult::Succeeded
+        );
+    }
+
+
+    /// Validates that releasing compact indexed capacity services ordinary Object Pool waiters.
+    void TestIndexedReleaseWakesWaiter() {
+        Resource resource;
+        TestSupport::TestMutexProvider mutex;
+        MemoryComposition::Select<Memory::SharedReserveAllocationRequirement, Framework::SelectUnique> allocator;
+        Runtime runtime(
+            mutex,
+            allocator,
+            resource
+        );
+        Memory::MemoryTopologyInitializationFailure failure;
+        assert(
+            runtime.Initialize(
+                failure
+            ) == Memory::MemoryTopologyInitializationResult::Succeeded
+        );
+
+        auto& pool = runtime.ObjectPoolFor<TestSupport::DedicatedOnlyObject>();
+        using Pool = Runtime::ObjectPoolType<TestSupport::DedicatedOnlyObject>;
+        Pool::DedicatedIndex owner;
+
+        assert(
+            pool.AcquireDedicated(
+                owner,
+                51
+            ) == Memory::DedicatedObjectPoolAcquisitionResult::Succeeded
+        );
+
+        std::atomic<Memory::ObjectPoolAcquisitionResult> waiterResult{
+            Memory::ObjectPoolAcquisitionResult::CapacityUnavailable
+        };
+        std::atomic<int> waiterValue{0};
+
+        std::thread waiter(
+            [&]() noexcept {
+                Pool::LeaseType lease;
+                const auto result = pool.Acquire(
+                    lease,
+                    Platform::Synchronization::WaitTimeout::ForNanoseconds(1000000000ULL),
+                    52
+                );
+                waiterResult.store(
+                    result,
+                    std::memory_order_relaxed
+                );
+
+                if (result == Memory::ObjectPoolAcquisitionResult::Succeeded) {
+                    waiterValue.store(
+                        lease->Value(),
+                        std::memory_order_relaxed
+                    );
+                }
+            }
+        );
+
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(20)
+        );
+        assert(
+            pool.ReleaseDedicated(
+                owner
+            ) == Memory::DedicatedObjectPoolReleaseResult::Released
+        );
+        waiter.join();
+
+        assert(
+            waiterResult.load(
+                std::memory_order_relaxed
+            ) == Memory::ObjectPoolAcquisitionResult::Succeeded
+        );
+        assert(
+            waiterValue.load(
+                std::memory_order_relaxed
+            ) == 52
+        );
+        assert(
+            runtime.TearDown() ==
+            Memory::MemoryTopologyTeardownResult::Succeeded
+        );
     }
 
 
@@ -756,6 +959,12 @@ int main() {
 
     std::fprintf(stderr, "[EDP-Memory] TestObjectPoolLifecycle\n");
     TestObjectPoolLifecycle();
+
+    std::fprintf(stderr, "[EDP-Memory] TestIndexedDedicatedObjectPool\n");
+    TestIndexedDedicatedObjectPool();
+
+    std::fprintf(stderr, "[EDP-Memory] TestIndexedReleaseWakesWaiter\n");
+    TestIndexedReleaseWakesWaiter();
 
     std::fprintf(stderr, "[EDP-Memory] TestUncappedSharedOverflow\n");
     TestUncappedSharedOverflow();

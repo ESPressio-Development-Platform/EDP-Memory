@@ -1,5 +1,5 @@
 COMPONENT_ADD_INCLUDEDIRS := src
 COMPONENT_SRCDIRS := src
-COMPONENT_REQUIRES := EDP_System EDP_Platform
+COMPONENT_REQUIRES := EDP_System EDP_Platform EDP_BoundedTopology
 
 CXXFLAGS += -std=gnu++20

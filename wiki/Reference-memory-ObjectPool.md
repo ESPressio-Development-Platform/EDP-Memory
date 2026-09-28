@@ -344,3 +344,65 @@ Reports whether any dedicated slot remains claimed.
 bool HasLiveDedicatedObjects() const noexcept
 ```
 
+## Event V1 indexed dedicated-pool additions
+
+### `DedicatedIndexSpace`
+
+**Classification:** PRIVATE IMPLEMENTATION
+
+Pool-local semantic tag used to prevent dedicated indices from unrelated concrete Object Pool Types becoming interchangeable.
+
+### `DedicatedCapacity`
+
+**Classification:** PUBLIC API
+
+Exact compile-time dedicated slot count copied from `ObjectPoolSpec::Dedicated::Value`. It determines the valid `DedicatedIndex` range and never represents shared overflow.
+
+### `DedicatedIndex`
+
+**Classification:** PUBLIC API
+
+`EDP-BoundedTopology::BoundedIndex<DedicatedIndexSpace, DedicatedCapacity>`. This is the compact ownership identity for the dedicated-only path. With the locked 0..255 capacity contract its representation is exactly one byte including the invalid sentinel. It contains no pool pointer and no backing-storage pointer.
+
+### `AcquireDedicated(DedicatedIndex&, TArguments&&...)`
+
+**Classification:** PUBLIC API
+
+Non-waiting dedicated-only acquisition. Requires a nothrow-selected constructor, never falls back to shared overflow, and publishes the index only after construction succeeds. The output index must be invalid on entry; otherwise `OutputIndexOccupied` is returned without mutation.
+
+### `DedicatedObject(DedicatedIndex)`
+
+**Classification:** PUBLIC API
+
+Mutable and const overloads resolve the stable live object owned by an index previously acquired successfully from this exact pool. This is a precondition-based access operation rather than a second fallible ownership transition: passing an invalid, foreign or already-released index is programmer misuse.
+
+### `ReleaseDedicated(DedicatedIndex&)`
+
+**Classification:** PUBLIC API
+
+Ends the live object's lifetime and returns its exact dedicated slot. Destruction occurs outside the Memory coordination mutex; capacity return then occurs under that mutex and participates in ordinary waiter service. Successful release invalidates the caller index.
+
+### `TryClaimDedicatedIndex(std::size_t&)`
+
+**Classification:** PRIVATE IMPLEMENTATION
+
+MemoryRuntime coordination seam that claims only the pool's dedicated occupancy bitmap and returns the zero-based raw slot index.
+
+### `IsDedicatedOccupied(std::size_t) const`
+
+**Classification:** PRIVATE IMPLEMENTATION
+
+Checks the authoritative dedicated occupancy bitmap while MemoryRuntime holds the appropriate coordination domain.
+
+### `DedicatedAddressAt(std::size_t)`
+
+**Classification:** PRIVATE IMPLEMENTATION
+
+Resolves the raw object address for one statically bounded dedicated slot; it does not create ownership.
+
+### `ReleaseDedicatedIndex(std::size_t)`
+
+**Classification:** PRIVATE IMPLEMENTATION
+
+Returns one raw dedicated slot to the occupancy bitmap. MemoryRuntime calls it only after object destruction and while coordinating capacity publication.
+

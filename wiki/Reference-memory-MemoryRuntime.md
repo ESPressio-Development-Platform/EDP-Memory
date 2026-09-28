@@ -657,3 +657,21 @@ template<
         class TTopology,
 ```
 
+## Event V1 indexed dedicated-pool additions
+
+### `AcquireDedicatedObject<TObject,TObjectPool,TArguments...>`
+
+**Classification:** PRIVATE IMPLEMENTATION / PUBLIC-FACADE BACKING
+
+Coordinates `ObjectPool::AcquireDedicated`. It rejects occupied output indices and unavailable topology state, claims a dedicated slot under the topology mutex, releases synchronization before invoking the nothrow constructor, and publishes the strong pool index only after the object is live. It never waits and never enters shared-reserve allocation.
+
+Failure preservation: capacity/uninitialized/topology rejection leaves the output index invalid and performs no construction. A synchronization release failure after a capacity claim marks Memory coordination failed because ownership state can no longer be safely reported as normal.
+
+### `ReleaseDedicatedObject<TObject,TObjectPool>`
+
+**Classification:** PRIVATE IMPLEMENTATION / PUBLIC-FACADE BACKING
+
+Coordinates `ObjectPool::ReleaseDedicated`. It validates occupancy under synchronization, destroys outside the mutex, reacquires synchronization to return capacity, services existing Object Pool waiters, and invalidates the caller index once ownership has ended.
+
+If synchronization fails after destruction, `_coordinationFailed` is set and the index is invalidated so a caller cannot validly retry and invoke the destructor twice. This is a fatal provider/coordinator condition rather than a recoverable capacity result.
+

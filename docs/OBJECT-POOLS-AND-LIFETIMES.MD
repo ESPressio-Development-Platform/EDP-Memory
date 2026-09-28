@@ -44,6 +44,12 @@ The lease:
 
 For long-lived scopes, explicitly call `.Release()` as soon as the object is no longer needed rather than waiting for scope exit. This returns scarce preallocated capacity sooner.
 
+## Compact dedicated index ownership
+
+For a statically known pool, `AcquireDedicated` provides a narrower ownership model that retains only the pool's strong one-byte `DedicatedIndex`. It never waits and never consumes shared overflow. `DedicatedObject(index)` resolves the live object, and `ReleaseDedicated(index)` destroys it and returns its dedicated slot while invalidating the caller index.
+
+This path exists for bounded runtimes where the pool binding is already invariant and retaining one pool pointer per live object would add no semantic value. It does not replace `ObjectPoolLease`; see [Indexed Dedicated Object Pools](./INDEXED-DEDICATED-OBJECT-POOLS.MD) for the complete contract.
+
 ## Nested object guidance
 
 If pooled `A` contains `B` directly by value, `sizeof(A)` already contains the storage for `B`; separately leasing B would add unnecessary indirection/capacity dependency.
