@@ -1,8 +1,8 @@
 # Dependency Contracts
 
-EDP-Memory depends on **EDP-System** and **EDP-Platform**.
+EDP-Memory depends on **EDP-System**, **EDP-Platform**, and **EDP-BoundedTopology**.
 
-For Arduino IDE / Arduino CLI compatibility, EDP-Memory enters the Platform dependency through the public `<ESPressio_Platform.hpp>` umbrella rather than cross-library `<synchronization/...>` implementation paths. This preserves the same dependency edge while allowing Arduino's recursive library resolver to discover EDP-Platform before Platform contracts are referenced.
+For Arduino IDE / Arduino CLI compatibility, EDP-Memory enters ESPressio dependencies through their public umbrella headers rather than cross-library internal source paths.
 
 ## EDP-System
 
@@ -24,6 +24,12 @@ Within the Memory domain:
 
 These are direct provider-trait contracts rather than Composition Requirements.
 
+## EDP-BoundedTopology
+
+`ObjectPool` consumes the public `BoundedIndex` value Type to represent the semantic identity of one slot in the exact compile-time dedicated capacity. This is a mandatory representation dependency introduced by the Event V1 indexed-pool tranche.
+
+BoundedTopology owns no backing allocation, object lifetime, occupancy, synchronization or provider selection. EDP-Memory remains the owner of all those responsibilities. The dependency direction is acyclic because BoundedTopology has no dependency on EDP-Memory.
+
 ## MemoryResource provider contract
 
 Every provider matched by the Memory Composition must satisfy `MemoryResourceProviderTraits`: it must offer `MemoryResource`, implement noexcept `Allocate(size,alignment,block)` returning `MemoryAllocationResult`, and noexcept `Release(block)` returning `MemoryReleaseResult`.
@@ -36,6 +42,4 @@ The topology's default resource, shared-reserve resource and any explicitly sele
 
 ## Lifetime/resource boundary
 
-Bootstrap owns all provider instances. MemoryRuntime owns topology bookkeeping/pools and borrows the selected resource/synchronization providers.
-
-> Dependency contract audit baseline: `c207fa8f6ee596ac8791b7d2c88509c372fda418` (`main`).
+Bootstrap owns all provider instances. MemoryRuntime owns topology bookkeeping/pools and borrows the selected resource/synchronization providers. Indexed dedicated consumers retain only a strong slot index; they do not own the backing allocation.

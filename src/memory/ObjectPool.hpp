@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <type_traits>
 #include <utility>
 
+#include <ESPressio_BoundedTopology.hpp>
 #include <ESPressio_Platform.hpp>
 
 #include "MemoryTypes.hpp"
@@ -32,6 +34,9 @@ namespace ESPressio::Memory {
         private:
 
             // Object Pool Type metadata.
+
+            /// Semantic tag distinguishing this pool's compact dedicated-slot index space.
+            struct DedicatedIndexSpace final {};
 
             /// Dedicated slot state for this Object Pool.
             using DedicatedState = Detail::DedicatedObjectPoolState<
@@ -66,8 +71,22 @@ namespace ESPressio::Memory {
             /// Creates an unbound Object Pool facade for internal tuple construction.
             ObjectPool() noexcept = default;
 
-            /// Move-only ownership Type returned by successful acquisition from this pool.
+            /// Exact statically configured dedicated-slot capacity.
+            static constexpr std::size_t DedicatedCapacity = TObjectPoolSpec::Dedicated::Value;
+
+            /// Strong compact identity retained by dedicated-only consumers instead of a pointer-bearing lease.
+            using DedicatedIndex = ESPressio::BoundedTopology::BoundedIndex<
+                DedicatedIndexSpace,
+                DedicatedCapacity
+            >;
+
+            /// Move-only ownership Type returned by ordinary dedicated/shared acquisition.
             using LeaseType = ObjectPoolLease<TObject, ObjectPool>;
+
+            static_assert(
+                sizeof(DedicatedIndex) == sizeof(std::uint8_t),
+                "Dedicated Object Pool indices must remain exactly one byte for the locked <=255 capacity range"
+            );
 
             /// Object Type managed by this pool.
             using ObjectType = TObject;
@@ -86,6 +105,71 @@ namespace ESPressio::Memory {
 
             /// Prevents move assignment of pool runtime state.
             ObjectPool& operator =(ObjectPool&&) = delete;
+
+
+            // Dedicated indexed ownership.
+
+            /// Acquires and constructs exactly one dedicated slot without waiting or consuming shared overflow.
+            ///
+            /// @tparam TArguments Constructor argument Types forwarded to TObject.
+            /// @param index Invalid output index that receives compact ownership only on success.
+            /// @param arguments Constructor arguments forwarded after dedicated capacity is reserved.
+            template<class... TArguments>
+            DedicatedObjectPoolAcquisitionResult AcquireDedicated(
+                DedicatedIndex& index,
+                TArguments&&... arguments
+            ) noexcept {
+                static_assert(
+                    std::is_nothrow_constructible_v<TObject, TArguments...>,
+                    "Dedicated Object Pool acquisition requires the selected constructor to be noexcept"
+                );
+
+                if (_runtime == nullptr) { return DedicatedObjectPoolAcquisitionResult::NotInitialized; }
+
+                return _runtime->template AcquireDedicatedObject<TObject>(
+                    *this,
+                    index,
+                    std::forward<TArguments>(arguments)...
+                );
+            }
+
+            /// Returns the live object represented by one caller-owned dedicated index.
+            ///
+            /// The supplied index must have been returned successfully by this pool and must not have been released.
+            [[nodiscard]] TObject& DedicatedObject(
+                DedicatedIndex index
+            ) noexcept requires (DedicatedCapacity > 0U) {
+                return *DedicatedState::DedicatedAddress(
+                    static_cast<std::size_t>(
+                        index.Value()
+                    )
+                );
+            }
+
+            /// Returns the immutable live object represented by one caller-owned dedicated index.
+            ///
+            /// The supplied index must have been returned successfully by this pool and must not have been released.
+            [[nodiscard]] const TObject& DedicatedObject(
+                DedicatedIndex index
+            ) const noexcept requires (DedicatedCapacity > 0U) {
+                return *const_cast<ObjectPool*>(this)->DedicatedAddressAt(
+                    static_cast<std::size_t>(
+                        index.Value()
+                    )
+                );
+            }
+
+            /// Destroys one indexed dedicated object and returns its slot to this pool.
+            [[nodiscard]] DedicatedObjectPoolReleaseResult ReleaseDedicated(
+                DedicatedIndex& index
+            ) noexcept {
+                if (_runtime == nullptr) { return DedicatedObjectPoolReleaseResult::NotInitialized; }
+
+                return _runtime->template ReleaseDedicatedObject<TObject>(
+                    *this,
+                    index
+                );
+            }
 
 
             // Object acquisition.
@@ -152,6 +236,34 @@ namespace ESPressio::Memory {
 
                 token = Detail::ObjectPoolToken::Dedicated(slotIndex);
                 return Detail::ObjectPoolCapacityClaimResult::Claimed;
+            }
+
+            /// Attempts to claim one dedicated slot and returns its raw zero-based index.
+            Detail::ObjectPoolCapacityClaimResult TryClaimDedicatedIndex(
+                std::size_t& slotIndex
+            ) noexcept {
+                return DedicatedState::TryClaimDedicated(slotIndex);
+            }
+
+            /// Reports whether one raw dedicated slot is currently claimed.
+            bool IsDedicatedOccupied(
+                std::size_t slotIndex
+            ) const noexcept {
+                return DedicatedState::IsDedicatedOccupied(slotIndex);
+            }
+
+            /// Resolves the object address associated directly with one dedicated slot index.
+            TObject* DedicatedAddressAt(
+                std::size_t slotIndex
+            ) noexcept {
+                return DedicatedState::DedicatedAddress(slotIndex);
+            }
+
+            /// Returns one directly indexed dedicated slot to the vacant set.
+            void ReleaseDedicatedIndex(
+                std::size_t slotIndex
+            ) noexcept {
+                DedicatedState::ReleaseDedicated(slotIndex);
             }
 
             /// Reports whether a shared allocation may be attempted under this pool's policy/quota.

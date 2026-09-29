@@ -62,7 +62,7 @@ namespace Demo {
     >;
 
 
-    /// Initializes one topology and demonstrates both lease and compact dedicated-index ownership.
+    /// Initializes one topology and demonstrates compact dedicated-index ownership.
     int Run() noexcept {
         Resource resource;
         Mutex mutex;
@@ -84,27 +84,6 @@ namespace Demo {
         }
         auto& pool = runtime.ObjectPoolFor<Value>();
         using Pool = Runtime::ObjectPoolType<Value>;
-        Pool::LeaseType lease;
-
-        if (
-            pool.Acquire(
-                lease,
-                ESPressio::Platform::Synchronization::WaitTimeout::NoWait(),
-                42
-            ) != ESPressio::Memory::ObjectPoolAcquisitionResult::Succeeded
-        ) {
-            return 2;
-        }
-
-        if (lease->Get() != 42) { return 3; }
-
-        if (
-            lease.Release() !=
-            ESPressio::Memory::ObjectPoolLeaseReleaseResult::Released
-        ) {
-            return 4;
-        }
-
         Pool::DedicatedIndex index;
 
         if (
@@ -113,24 +92,24 @@ namespace Demo {
                 84
             ) != ESPressio::Memory::DedicatedObjectPoolAcquisitionResult::Succeeded
         ) {
-            return 5;
+            return 2;
         }
 
-        if (!index.IsValid()) { return 6; }
-        if (pool.DedicatedObject(index).Get() != 84) { return 7; }
+        if (!index.IsValid()) { return 3; }
+        if (pool.DedicatedObject(index).Get() != 84) { return 4; }
 
         if (
             pool.ReleaseDedicated(
                 index
             ) != ESPressio::Memory::DedicatedObjectPoolReleaseResult::Released
         ) {
-            return 8;
+            return 5;
         }
 
-        if (index.IsValid()) { return 9; }
+        if (index.IsValid()) { return 6; }
 
         return runtime.TearDown() ==
-            ESPressio::Memory::MemoryTopologyTeardownResult::Succeeded ? 0 : 10;
+            ESPressio::Memory::MemoryTopologyTeardownResult::Succeeded ? 0 : 7;
     }
 
 } // Demo

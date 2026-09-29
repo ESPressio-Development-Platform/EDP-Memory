@@ -361,3 +361,17 @@ Records return of one shared instance.
 void ReleaseShared() noexcept
 ```
 
+## Event V1 indexed dedicated-pool additions
+
+### `DedicatedObjectPoolState<TObject,0>::IsDedicatedOccupied(std::size_t) const`
+
+**Classification:** PRIVATE IMPLEMENTATION
+
+Always returns false because a zero-capacity dedicated pool contains no valid or occupied slot.
+
+### `DedicatedObjectPoolState<TObject,TCount>::IsDedicatedOccupied(std::size_t) const`
+
+**Classification:** PRIVATE IMPLEMENTATION
+
+Returns true only when the supplied raw index is within the fixed compile-time capacity and its authoritative occupancy bit is set. It introduces no second occupancy representation.
+

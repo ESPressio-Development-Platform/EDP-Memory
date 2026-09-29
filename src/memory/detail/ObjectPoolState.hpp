@@ -42,6 +42,13 @@ namespace ESPressio::Memory::Detail {
                 return false;
             }
 
+            /// Reports that no dedicated slot is occupied because the pool has no dedicated capacity.
+            bool IsDedicatedOccupied(
+                std::size_t
+            ) const noexcept {
+                return false;
+            }
+
             /// Reports that no dedicated slot can be claimed.
             ObjectPoolCapacityClaimResult TryClaimDedicated(
                 std::size_t&
@@ -197,6 +204,13 @@ namespace ESPressio::Memory::Detail {
                 }
 
                 return ObjectPoolCapacityClaimResult::CapacityUnavailable;
+            }
+
+            /// Reports whether one in-range dedicated slot is currently claimed.
+            bool IsDedicatedOccupied(
+                std::size_t slotIndex
+            ) const noexcept {
+                return slotIndex < TCount && IsOccupied(slotIndex);
             }
 
             /// Returns one previously claimed dedicated slot to the vacant set.

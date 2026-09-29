@@ -22,6 +22,8 @@ A topology requesting N dedicated instances either reserves storage for exactly 
 
 Dedicated Object Pools are reserved synchronously in topology declaration order. This makes placement priority deterministic without requiring a second runtime priority mechanism.
 
+Each concrete `ObjectPool` derives a strong `EDP-BoundedTopology::BoundedIndex` over its exact dedicated capacity. Because the capacity ceiling is 255, this ownership index is exactly one byte including its invalid sentinel. The index is exposed only as compact dedicated-slot identity; backing ownership remains in EDP-Memory.
+
 ## Shared overflow policy
 
 Shared reserve eligibility is explicit:

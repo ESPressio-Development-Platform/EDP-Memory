@@ -253,3 +253,31 @@ Reserved ordinal used when no Object Pool is associated with the failure.
 static constexpr std::size_t NoObjectPoolIndex = static_cast<std::size_t>(-1);
 ```
 
+## Event V1 indexed dedicated-pool additions
+
+### `DedicatedObjectPoolAcquisitionResult`
+
+**Classification:** PUBLIC API
+
+Strong operational result for non-waiting dedicated-index acquisition.
+
+- `Succeeded = 0` — one dedicated slot was claimed, the object was constructed, and the output index now owns that slot.
+- `CapacityUnavailable = 1` — no dedicated slot was vacant; shared capacity is intentionally not considered.
+- `NotInitialized = 2` — the owning Memory runtime has not established its topology.
+- `TopologyUnavailable = 3` — the topology is not in its frozen operational state or acquisitions have been cancelled.
+- `OutputIndexOccupied = 4` — the caller supplied an already-valid ownership index; it is left unchanged.
+- `ProviderFailure = 5` — the Memory synchronization/provider layer could not preserve normal operation.
+
+### `DedicatedObjectPoolReleaseResult`
+
+**Classification:** PUBLIC API
+
+Strong operational result for indexed dedicated-object destruction/capacity return.
+
+- `Released = 0` — object lifetime ended, the dedicated slot returned to capacity, and the caller index was invalidated.
+- `InvalidIndex = 1` — the supplied index is already invalid and therefore owns no slot.
+- `SlotNotOwned = 2` — the numeric index is in-range but the corresponding slot is not currently claimed.
+- `NotInitialized = 3` — the Memory runtime is uninitialized.
+- `TopologyUnavailable = 4` — release was attempted while the topology is outside its normal frozen operational state.
+- `ProviderFailure = 5` — synchronization/provider failure prevented a cleanly reportable normal release transition.
+

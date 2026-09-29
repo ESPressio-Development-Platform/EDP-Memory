@@ -122,6 +122,28 @@ namespace ESPressio::Memory {
     };
 
 
+    /// Outcome from acquiring one object through compact dedicated-slot ownership.
+    enum class DedicatedObjectPoolAcquisitionResult : std::uint8_t {
+        Succeeded = 0,
+        CapacityUnavailable = 1,
+        NotInitialized = 2,
+        TopologyUnavailable = 3,
+        OutputIndexOccupied = 4,
+        ProviderFailure = 5
+    };
+
+
+    /// Outcome from destroying and returning one compact dedicated-slot ownership claim.
+    enum class DedicatedObjectPoolReleaseResult : std::uint8_t {
+        Released = 0,
+        InvalidIndex = 1,
+        SlotNotOwned = 2,
+        NotInitialized = 3,
+        TopologyUnavailable = 4,
+        ProviderFailure = 5
+    };
+
+
     /// Outcome from explicitly releasing one ObjectPoolLease.
     enum class ObjectPoolLeaseReleaseResult : std::uint8_t {
         Released = 0,

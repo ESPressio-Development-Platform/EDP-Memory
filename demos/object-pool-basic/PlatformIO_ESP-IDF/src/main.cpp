@@ -1,5 +1,6 @@
 #include <ESPressio_Memory.hpp>
-#include <ESPressio_Platform_Portable.hpp>
+#include <ESPressio_Platform_FreeRTOS.hpp>
+#include <memory/MemoryResourceProvider.hpp>
 
 namespace Demo {
 
@@ -32,8 +33,8 @@ namespace Demo {
 
 
     using Resource = ESPressio::Platform::Portable::Memory::MemoryResourceProvider;
-    using Mutex = ESPressio::Platform::Portable::Synchronization::MutexProvider;
-    using Signal = ESPressio::Platform::Portable::Synchronization::SignalProvider;
+    using Mutex = ESPressio::Platform::FreeRTOS::Synchronization::MutexProvider;
+    using Signal = ESPressio::Platform::FreeRTOS::Synchronization::SignalProvider;
 
     using ValuePoolSpec = ESPressio::Memory::ObjectPoolSpec<
         Value,
@@ -59,7 +60,7 @@ namespace Demo {
     >;
 
 
-    /// Initializes one topology, acquires one dedicated object, releases it, and tears down.
+    /// Initializes one topology and demonstrates both lease and compact dedicated-index ownership.
     int Run() noexcept {
         Resource resource;
         Mutex mutex;
@@ -73,14 +74,15 @@ namespace Demo {
         ESPressio::Memory::MemoryTopologyInitializationFailure failure{};
 
         if (
-            runtime.Initialize(failure) !=
-            ESPressio::Memory::MemoryTopologyInitializationResult::Succeeded
+            runtime.Initialize(
+                failure
+            ) != ESPressio::Memory::MemoryTopologyInitializationResult::Succeeded
         ) {
             return 1;
         }
-
         auto& pool = runtime.ObjectPoolFor<Value>();
-        Runtime::ObjectPoolType<Value>::LeaseType lease;
+        using Pool = Runtime::ObjectPoolType<Value>;
+        Pool::LeaseType lease;
 
         if (
             pool.Acquire(
@@ -101,8 +103,32 @@ namespace Demo {
             return 4;
         }
 
+        Pool::DedicatedIndex index;
+
+        if (
+            pool.AcquireDedicated(
+                index,
+                84
+            ) != ESPressio::Memory::DedicatedObjectPoolAcquisitionResult::Succeeded
+        ) {
+            return 5;
+        }
+
+        if (!index.IsValid()) { return 6; }
+        if (pool.DedicatedObject(index).Get() != 84) { return 7; }
+
+        if (
+            pool.ReleaseDedicated(
+                index
+            ) != ESPressio::Memory::DedicatedObjectPoolReleaseResult::Released
+        ) {
+            return 8;
+        }
+
+        if (index.IsValid()) { return 9; }
+
         return runtime.TearDown() ==
-            ESPressio::Memory::MemoryTopologyTeardownResult::Succeeded ? 0 : 5;
+            ESPressio::Memory::MemoryTopologyTeardownResult::Succeeded ? 0 : 10;
     }
 
 } // Demo

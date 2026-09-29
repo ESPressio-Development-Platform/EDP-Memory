@@ -1,0 +1,64 @@
+name: Memory Validation
+
+on:
+  push:
+    branches:
+      - main
+      - event_v1
+  pull_request:
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout EDP-Memory
+        uses: actions/checkout@v4
+        with:
+          path: EDP-Memory
+
+      - name: Checkout EDP-System
+        uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-System
+          path: EDP-System
+
+      - name: Checkout EDP-Platform
+        uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-Platform
+          path: EDP-Platform
+      - name: Checkout EDP-BoundedTopology
+        uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-BoundedTopology
+          path: EDP-BoundedTopology
+
+      - name: GCC host and compile-fail validation
+        run: bash EDP-Memory/tests/run_host_tests.sh
+
+      - name: Clang host and compile-fail validation
+        env:
+          CXX: clang++
+        run: bash EDP-Memory/tests/run_host_tests.sh
+
+      - name: UBSan host validation
+        env:
+          EDP_MEMORY_SANITIZER_MODE: undefined
+        run: bash EDP-Memory/tests/run_host_tests.sh
+
+  platform-builds:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout EDP-Memory
+        uses: actions/checkout@v4
+
+      - name: Install PlatformIO
+        run: python -m pip install --upgrade platformio
+
+      - name: Build indexed Object Pool Arduino demo with PIOArduino platform
+        run: pio run -d demos/indexed-object-pool-basic/PlatformIO_Arduino
+
+      - name: Build indexed Object Pool ESP-IDF demo with PIOArduino platform
+        run: pio run -d demos/indexed-object-pool-basic/PlatformIO_ESP-IDF
