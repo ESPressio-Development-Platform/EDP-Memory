@@ -19,7 +19,7 @@ Its purpose is to make memory cost an application design decision: application B
   Defines raw-slot reservation, `ObjectPool`, move-only `ObjectPoolLease`, construction/destruction requirements, nested pool guidance, and stable addresses.
 
 - [Indexed Dedicated Object Pools](./docs/INDEXED-DEDICATED-OBJECT-POOLS.MD)
-  Defines one-byte strongly indexed dedicated-slot ownership for statically known pools without retaining a pointer-bearing lease.
+  Defines one-byte strongly indexed dedicated-slot ownership for statically known pools, including in-place nothrow reconstruction without releasing the capacity claim.
 
 - [Shared Reserve Allocation](./docs/SHARED-RESERVE-ALLOCATION.MD)  
   Defines the substitutable shared allocator contract and the default in-band coalescing-first-fit implementation.
@@ -38,6 +38,7 @@ MemoryTopology                     compile-time immutable topology declaration
 ObjectPool<T,...>                  dedicated-first typed object capacity
 ObjectPoolLease<T,...>             move-only RAII ownership token
 ObjectPool::DedicatedIndex          one-byte strong dedicated-slot ownership identity
+ObjectPool::ResetDedicated           in-place indexed object reconstruction without capacity release
 ObjectPoolable<T>                  optional zero-state acquisition convenience
 MemoryRuntime                      synchronous initialization, waiting, cancellation, teardown
 CoalescingFirstFitProvider         default bounded shared-reserve allocator
@@ -71,6 +72,7 @@ See [DEPENDENCY_GRAPH.MD](./DEPENDENCY_GRAPH.MD) for the maintained dependency g
 - Pooled construction performs no second EDP-Memory allocation after a slot/shared span has been claimed.
 - Typed lifetime transitions allocate no storage and require non-throwing construction/move/destruction contracts.
 - Live objects are never relocated or compacted.
+- Indexed dedicated reset preserves the existing capacity claim, strong index, and stable object address.
 - Waiters allocate no heap state; their temporary request and Signal live on the blocked caller's existing stack.
 - Production runtime stores no historical diagnostics solely for developer telemetry.
 
@@ -90,7 +92,7 @@ Complete teardown is first-class. It refuses while live pooled objects remain. O
 
 ## Testing
 
-Host coverage validates typed object lifetime operations, the default shared allocator, pool lifetime, compact indexed dedicated ownership, quotas, waiting/cancellation, rollback, teardown/reinitialize, compact lease/index representation, and compile-fail topology/lifetime constraints. Platform concrete providers maintain their own provider-specific coverage in their owning repositories.
+Host coverage validates typed object lifetime operations, the default shared allocator, pool lifetime, compact indexed dedicated ownership/reset, quotas, waiting/cancellation, rollback, teardown/reinitialize, compact lease/index representation, and compile-fail topology/lifetime constraints. Platform concrete providers maintain their own provider-specific coverage in their owning repositories.
 
 The host runner executes functional and compile-fail coverage without sanitizers by default. Optional sanitizer passes are selected explicitly through `EDP_MEMORY_SANITIZER_MODE`:
 

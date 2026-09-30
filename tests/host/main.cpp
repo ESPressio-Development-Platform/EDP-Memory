@@ -130,17 +130,30 @@ namespace TestSupport {
 
         private:
 
-            // Native test mutex.
+            // Native test mutex and failure injection.
 
             /// Timed mutex implementing the test provider.
             std::timed_mutex _mutex;
 
+            /// Injects one provider failure on the next acquisition when set.
+            bool _failNextAcquire = false;
+
         public:
+
+            /// Injects one provider failure on the next mutex acquisition.
+            void FailNextAcquire() noexcept {
+                _failNextAcquire = true;
+            }
 
             /// Acquires the mutex according to the requested Platform wait policy.
             Platform::Synchronization::LockAcquireResult Acquire(
                 Platform::Synchronization::WaitTimeout timeout
             ) noexcept {
+                if (_failNextAcquire) {
+                    _failNextAcquire = false;
+                    return Platform::Synchronization::LockAcquireResult::ProviderFailure;
+                }
+
                 try {
                     if (timeout.IsForever()) {
                         _mutex.lock();
@@ -606,17 +619,27 @@ namespace {
             resource
         );
         Memory::MemoryTopologyInitializationFailure failure;
+        auto& pool = runtime.ObjectPoolFor<TestSupport::PooledObject>();
+        using Pool = Runtime::ObjectPoolType<TestSupport::PooledObject>;
+        Pool::DedicatedIndex first;
+        Pool::DedicatedIndex unavailable;
+        auto preInitializationIndex = Pool::DedicatedIndex::FromUnchecked(
+            0U
+        );
+
+        assert(
+            pool.ResetDedicated(
+                preInitializationIndex,
+                40
+            ) == Memory::DedicatedObjectPoolResetResult::NotInitialized
+        );
+        assert(preInitializationIndex.IsValid());
 
         assert(
             runtime.Initialize(
                 failure
             ) == Memory::MemoryTopologyInitializationResult::Succeeded
         );
-
-        auto& pool = runtime.ObjectPoolFor<TestSupport::PooledObject>();
-        using Pool = Runtime::ObjectPoolType<TestSupport::PooledObject>;
-        Pool::DedicatedIndex first;
-        Pool::DedicatedIndex unavailable;
 
         assert(!first.IsValid());
         assert(
@@ -629,6 +652,30 @@ namespace {
         assert(first.Value() == 0U);
         assert(pool.DedicatedObject(first).Value() == 41);
         assert(TestSupport::PooledObject::LiveCount.load() == 1);
+
+        const auto* originalAddress = &pool.DedicatedObject(first);
+        const auto originalIndex = first.Value();
+        assert(
+            pool.ResetDedicated(
+                first,
+                42
+            ) == Memory::DedicatedObjectPoolResetResult::Succeeded
+        );
+        assert(first.IsValid());
+        assert(first.Value() == originalIndex);
+        assert(&pool.DedicatedObject(first) == originalAddress);
+        assert(pool.DedicatedObject(first).Value() == 42);
+        assert(TestSupport::PooledObject::LiveCount.load() == 1);
+
+        mutex.FailNextAcquire();
+        assert(
+            pool.ResetDedicated(
+                first,
+                43
+            ) == Memory::DedicatedObjectPoolResetResult::ProviderFailure
+        );
+        assert(pool.DedicatedObject(first).Value() == 42);
+        assert(first.Value() == originalIndex);
 
         assert(
             pool.AcquireDedicated(
@@ -645,6 +692,16 @@ namespace {
         );
         assert(!unavailable.IsValid());
         assert(TestSupport::PooledObject::LiveCount.load() == 1);
+
+        auto unownedReset = Pool::DedicatedIndex::FromUnchecked(
+            0U
+        );
+        assert(
+            pool.ResetDedicated(
+                Pool::DedicatedIndex::Invalid(),
+                45
+            ) == Memory::DedicatedObjectPoolResetResult::InvalidIndex
+        );
 
         PooledLease genericLease;
         assert(
@@ -669,6 +726,13 @@ namespace {
         assert(!first.IsValid());
         assert(TestSupport::PooledObject::LiveCount.load() == 0);
         assert(
+            pool.ResetDedicated(
+                unownedReset,
+                46
+            ) == Memory::DedicatedObjectPoolResetResult::SlotNotOwned
+        );
+        assert(unownedReset.IsValid());
+        assert(
             pool.ReleaseDedicated(
                 first
             ) == Memory::DedicatedObjectPoolReleaseResult::InvalidIndex
@@ -683,6 +747,29 @@ namespace {
             ) == Memory::DedicatedObjectPoolReleaseResult::SlotNotOwned
         );
         assert(unowned.IsValid());
+
+        assert(
+            pool.AcquireDedicated(
+                first,
+                47
+            ) == Memory::DedicatedObjectPoolAcquisitionResult::Succeeded
+        );
+        assert(
+            runtime.CancelPendingAcquisitions() ==
+            Memory::PendingAcquisitionCancellationResult::Cancelled
+        );
+        assert(
+            pool.ResetDedicated(
+                first,
+                48
+            ) == Memory::DedicatedObjectPoolResetResult::TopologyUnavailable
+        );
+        assert(pool.DedicatedObject(first).Value() == 47);
+        assert(
+            pool.ReleaseDedicated(
+                first
+            ) == Memory::DedicatedObjectPoolReleaseResult::Released
+        );
 
         assert(
             runtime.TearDown() ==
@@ -749,6 +836,28 @@ namespace {
         std::this_thread::sleep_for(
             std::chrono::milliseconds(20)
         );
+        const auto* ownerAddress = &pool.DedicatedObject(owner);
+        const auto ownerIndex = owner.Value();
+        assert(
+            pool.ResetDedicated(
+                owner,
+                53
+            ) == Memory::DedicatedObjectPoolResetResult::Succeeded
+        );
+        assert(owner.IsValid());
+        assert(owner.Value() == ownerIndex);
+        assert(&pool.DedicatedObject(owner) == ownerAddress);
+        assert(pool.DedicatedObject(owner).Value() == 53);
+
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(20)
+        );
+        assert(
+            waiterResult.load(
+                std::memory_order_relaxed
+            ) == Memory::ObjectPoolAcquisitionResult::CapacityUnavailable
+        );
+
         assert(
             pool.ReleaseDedicated(
                 owner

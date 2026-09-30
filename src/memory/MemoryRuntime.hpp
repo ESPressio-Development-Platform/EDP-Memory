@@ -910,6 +910,95 @@ namespace ESPressio::Memory::Detail {
                 return DedicatedObjectPoolAcquisitionResult::Succeeded;
             }
 
+            /// Reconstructs one live indexed dedicated TObject while preserving its ownership claim and address.
+            ///
+            /// The existing claim is validated under Memory coordination, then coordination is released before
+            /// user-defined nothrow destruction/construction executes. No occupancy state changes and no waiter
+            /// is serviced because capacity never becomes available.
+            template<
+                class TObject,
+                class TObjectPool,
+                class... TArguments
+            >
+            DedicatedObjectPoolResetResult ResetDedicatedObject(
+                TObjectPool& pool,
+                typename TObjectPool::DedicatedIndex index,
+                TArguments&&... arguments
+            ) noexcept {
+                static_assert(
+                    std::is_nothrow_constructible_v<TObject, TArguments...>,
+                    "Dedicated Object Pool reset requires the selected constructor to be noexcept"
+                );
+
+                if (!index.IsValid()) {
+                    return DedicatedObjectPoolResetResult::InvalidIndex;
+                }
+
+                if (_state == MemoryTopologyState::Uninitialized) {
+                    return DedicatedObjectPoolResetResult::NotInitialized;
+                }
+
+                if (
+                    _state != MemoryTopologyState::InitializedFrozen ||
+                    _acquisitionsCancelled
+                ) {
+                    return DedicatedObjectPoolResetResult::TopologyUnavailable;
+                }
+
+                if (_coordinationFailed) {
+                    return DedicatedObjectPoolResetResult::ProviderFailure;
+                }
+
+                if (
+                    AcquireCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
+                ) {
+                    return DedicatedObjectPoolResetResult::ProviderFailure;
+                }
+
+                if (
+                    _state != MemoryTopologyState::InitializedFrozen ||
+                    _acquisitionsCancelled
+                ) {
+                    const auto releaseResult = ReleaseCoordinationLock();
+
+                    return releaseResult == ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                        ? DedicatedObjectPoolResetResult::TopologyUnavailable
+                        : DedicatedObjectPoolResetResult::ProviderFailure;
+                }
+
+                const auto slotIndex = static_cast<std::size_t>(
+                    index.Value()
+                );
+
+                if (!pool.IsDedicatedOccupied(slotIndex)) {
+                    const auto releaseResult = ReleaseCoordinationLock();
+
+                    return releaseResult == ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                        ? DedicatedObjectPoolResetResult::SlotNotOwned
+                        : DedicatedObjectPoolResetResult::ProviderFailure;
+                }
+
+                if (
+                    ReleaseCoordinationLock() !=
+                    ESPressio::Platform::Synchronization::LockReleaseResult::Released
+                ) {
+                    _coordinationFailed = true;
+                    return DedicatedObjectPoolResetResult::ProviderFailure;
+                }
+
+                auto* object = pool.DedicatedAddressAt(
+                    slotIndex
+                );
+                object->~TObject();
+                ::new (static_cast<void*>(object)) TObject(
+                    std::forward<TArguments>(arguments)...
+                );
+
+                return DedicatedObjectPoolResetResult::Succeeded;
+            }
+
+
             /// Destroys one indexed dedicated TObject and returns its slot to normal pool capacity.
             ///
             /// Destruction executes outside the Memory coordination mutex, matching the ordinary lease release

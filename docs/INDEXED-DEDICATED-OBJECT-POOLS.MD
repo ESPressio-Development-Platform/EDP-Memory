@@ -39,6 +39,23 @@ Because the constructor must be `noexcept`, no exception rollback state is requi
 
 The address remains stable for the complete indexed ownership lifetime.
 
+## In-place reset
+
+`ResetDedicated(index, constructorArguments...)` reconstructs the already-owned dedicated object without releasing its capacity claim:
+
+1. requires a valid index which currently owns a slot in this exact pool;
+2. requires the Memory topology to be initialized, frozen, acquisition-enabled, and coordination-healthy;
+3. validates slot ownership under the existing Memory coordination mutex;
+4. releases Memory coordination before invoking the nothrow destructor and selected nothrow replacement constructor;
+5. preserves the dedicated occupancy claim, caller-held strong index, and object address throughout;
+6. does not return capacity, enter shared overflow, allocate a second object, or service waiters.
+
+The result is `DedicatedObjectPoolResetResult` with `Succeeded`, `InvalidIndex`, `SlotNotOwned`, `NotInitialized`, `TopologyUnavailable`, and `ProviderFailure`. The replacement constructor must be `noexcept`; a throwing selected constructor is rejected at compile time.
+
+Provider failure can occur only before destruction starts. Once ownership is validated and the Memory coordination mutex has been released successfully, reset performs only the nothrow destruction/construction pair and therefore has no fallible provider step after the old object lifetime ends.
+
+Reset is deliberately distinct from `ReleaseDedicated` followed by `AcquireDedicated`: capacity never becomes visible to another consumer or an existing waiter, and no new capacity decision is introduced.
+
 ## Release
 
 `ReleaseDedicated(index)`:
@@ -65,7 +82,7 @@ Indexed dedicated ownership is intentionally narrower. It is appropriate only wh
 
 ## Concurrency, teardown and ISR boundary
 
-Indexed acquisition and release use the same topology-wide ordinary-context mutex and occupancy bookkeeping as the existing pool path. Releasing indexed capacity can therefore wake an already-blocked ordinary pool waiter.
+Indexed acquisition, reset, and release use the same topology-wide ordinary-context mutex and occupancy bookkeeping as the existing pool path. Reset validates ownership under that mutex but reconstructs outside it without changing occupancy. Releasing indexed capacity can wake an already-blocked ordinary pool waiter; reset cannot, because it never returns capacity.
 
 A live indexed slot counts as a live dedicated object, so topology teardown returns `LiveObjectsRemain` until it has been released.
 

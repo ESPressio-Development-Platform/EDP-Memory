@@ -376,6 +376,12 @@ Non-waiting dedicated-only acquisition. Requires a nothrow-selected constructor,
 
 Mutable and const overloads resolve the stable live object owned by an index previously acquired successfully from this exact pool. This is a precondition-based access operation rather than a second fallible ownership transition: passing an invalid, foreign or already-released index is programmer misuse.
 
+### `ResetDedicated(DedicatedIndex, TArguments&&...)`
+
+**Classification:** PUBLIC API
+
+Reconstructs one currently owned dedicated object in place. The selected replacement constructor must be nothrow. A successful reset preserves the dedicated occupancy claim, strong index value and stable object address, performs no allocation/shared fallback, and exposes no capacity to waiters. `DedicatedObjectPoolResetResult` distinguishes invalid/unowned indices, unavailable topology and provider failure.
+
 ### `ReleaseDedicated(DedicatedIndex&)`
 
 **Classification:** PUBLIC API

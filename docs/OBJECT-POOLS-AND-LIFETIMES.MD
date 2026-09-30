@@ -46,7 +46,7 @@ For long-lived scopes, explicitly call `.Release()` as soon as the object is no 
 
 ## Compact dedicated index ownership
 
-For a statically known pool, `AcquireDedicated` provides a narrower ownership model that retains only the pool's strong one-byte `DedicatedIndex`. It never waits and never consumes shared overflow. `DedicatedObject(index)` resolves the live object, and `ReleaseDedicated(index)` destroys it and returns its dedicated slot while invalidating the caller index.
+For a statically known pool, `AcquireDedicated` provides a narrower ownership model that retains only the pool's strong one-byte `DedicatedIndex`. It never waits and never consumes shared overflow. `DedicatedObject(index)` resolves the live object, `ResetDedicated(index, ...)` reconstructs it in place while preserving its claim/index/address, and `ReleaseDedicated(index)` destroys it and returns its dedicated slot while invalidating the caller index.
 
 This path exists for bounded runtimes where the pool binding is already invariant and retaining one pool pointer per live object would add no semantic value. It does not replace `ObjectPoolLease`; see [Indexed Dedicated Object Pools](./INDEXED-DEDICATED-OBJECT-POOLS.MD) for the complete contract.
 

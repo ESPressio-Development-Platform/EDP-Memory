@@ -7,6 +7,6 @@ Arduino-facing source validation must also verify that public headers discover m
 
 ## Event V1 indexed-pool coverage
 
-`tests/host/main.cpp` validates compact one-byte `DedicatedIndex` layout, dedicated-only no-wait acquisition, coexistence with ordinary shared-capable leases, release/index invalidation, unowned-slot rejection, teardown, and lifetime accounting. `tests/compile_fail/throwing_dedicated_constructor.cpp` proves the indexed path rejects throwing constructors.
+`tests/host/main.cpp` validates compact one-byte `DedicatedIndex` layout, dedicated-only no-wait acquisition, in-place reset with stable index/address/occupancy, provider/topology/ownership reset failures, coexistence with ordinary shared-capable leases, reset not servicing blocked waiters, release/index invalidation, unowned-slot rejection, teardown, and lifetime accounting. Compile-fail coverage proves both indexed acquisition and indexed reset reject throwing selected constructors.
 
 `tests/run_host_tests.sh` now requires the sibling EDP-BoundedTopology source tree and exercises the same coverage under GCC/Clang plus explicit sanitizer modes. Representative GitHub Actions mirror that dependency topology.

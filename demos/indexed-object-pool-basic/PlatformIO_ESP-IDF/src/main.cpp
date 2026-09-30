@@ -96,18 +96,32 @@ namespace Demo {
         if (!index.IsValid()) { return 3; }
         if (pool.DedicatedObject(index).Get() != 84) { return 4; }
 
+        const auto originalIndex = index.Value();
+        const auto* originalAddress = &pool.DedicatedObject(index);
+        if (
+            pool.ResetDedicated(
+                index,
+                85
+            ) != ESPressio::Memory::DedicatedObjectPoolResetResult::Succeeded
+        ) {
+            return 5;
+        }
+        if (!index.IsValid() || index.Value() != originalIndex) { return 6; }
+        if (&pool.DedicatedObject(index) != originalAddress) { return 7; }
+        if (pool.DedicatedObject(index).Get() != 85) { return 8; }
+
         if (
             pool.ReleaseDedicated(
                 index
             ) != ESPressio::Memory::DedicatedObjectPoolReleaseResult::Released
         ) {
-            return 5;
+            return 9;
         }
 
-        if (index.IsValid()) { return 6; }
+        if (index.IsValid()) { return 10; }
 
         return runtime.TearDown() ==
-            ESPressio::Memory::MemoryTopologyTeardownResult::Succeeded ? 0 : 7;
+            ESPressio::Memory::MemoryTopologyTeardownResult::Succeeded ? 0 : 11;
     }
 
 } // Demo

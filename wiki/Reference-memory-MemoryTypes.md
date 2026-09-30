@@ -268,6 +268,19 @@ Strong operational result for non-waiting dedicated-index acquisition.
 - `OutputIndexOccupied = 4` — the caller supplied an already-valid ownership index; it is left unchanged.
 - `ProviderFailure = 5` — the Memory synchronization/provider layer could not preserve normal operation.
 
+### `DedicatedObjectPoolResetResult`
+
+**Classification:** PUBLIC API
+
+Strong operational result for in-place reconstruction of one live indexed dedicated object.
+
+- `Succeeded = 0` — the existing object was destroyed and reconstructed at the same address while its capacity claim/index remained live.
+- `InvalidIndex = 1` — the supplied index is invalid.
+- `SlotNotOwned = 2` — the numeric index is in range but no live dedicated claim owns that slot.
+- `NotInitialized = 3` — the Memory runtime is uninitialized.
+- `TopologyUnavailable = 4` — the topology is not in normal frozen/acquisition-enabled operation.
+- `ProviderFailure = 5` — synchronization/provider failure prevented validation from reaching the reconstruction boundary.
+
 ### `DedicatedObjectPoolReleaseResult`
 
 **Classification:** PUBLIC API

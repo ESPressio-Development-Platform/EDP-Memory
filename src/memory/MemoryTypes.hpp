@@ -133,6 +133,17 @@ namespace ESPressio::Memory {
     };
 
 
+    /// Outcome from reconstructing one live compact dedicated-slot object in place.
+    enum class DedicatedObjectPoolResetResult : std::uint8_t {
+        Succeeded = 0,
+        InvalidIndex = 1,
+        SlotNotOwned = 2,
+        NotInitialized = 3,
+        TopologyUnavailable = 4,
+        ProviderFailure = 5
+    };
+
+
     /// Outcome from destroying and returning one compact dedicated-slot ownership claim.
     enum class DedicatedObjectPoolReleaseResult : std::uint8_t {
         Released = 0,

@@ -159,6 +159,34 @@ namespace ESPressio::Memory {
                 );
             }
 
+            /// Reconstructs one live indexed dedicated object in place without releasing its capacity claim.
+            ///
+            /// The supplied index must represent a live object owned by this exact pool. The dedicated
+            /// occupancy claim, strong index, and object address remain unchanged across a successful reset.
+            /// No waiter is serviced because no capacity becomes available.
+            ///
+            /// @tparam TArguments Constructor argument Types forwarded to TObject after destruction.
+            /// @param index Existing live dedicated ownership identity, retained unchanged on success.
+            /// @param arguments Constructor arguments forwarded to the replacement object.
+            template<class... TArguments>
+            [[nodiscard]] DedicatedObjectPoolResetResult ResetDedicated(
+                DedicatedIndex index,
+                TArguments&&... arguments
+            ) noexcept {
+                static_assert(
+                    std::is_nothrow_constructible_v<TObject, TArguments...>,
+                    "Dedicated Object Pool reset requires the selected constructor to be noexcept"
+                );
+
+                if (_runtime == nullptr) { return DedicatedObjectPoolResetResult::NotInitialized; }
+
+                return _runtime->template ResetDedicatedObject<TObject>(
+                    *this,
+                    index,
+                    std::forward<TArguments>(arguments)...
+                );
+            }
+
             /// Destroys one indexed dedicated object and returns its slot to this pool.
             [[nodiscard]] DedicatedObjectPoolReleaseResult ReleaseDedicated(
                 DedicatedIndex& index

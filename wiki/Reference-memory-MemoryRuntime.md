@@ -667,6 +667,14 @@ Coordinates `ObjectPool::AcquireDedicated`. It rejects occupied output indices a
 
 Failure preservation: capacity/uninitialized/topology rejection leaves the output index invalid and performs no construction. A synchronization release failure after a capacity claim marks Memory coordination failed because ownership state can no longer be safely reported as normal.
 
+### `ResetDedicatedObject<TObject,TObjectPool,TArguments...>`
+
+**Classification:** PRIVATE IMPLEMENTATION / PUBLIC-FACADE BACKING
+
+Coordinates `ObjectPool::ResetDedicated`. It validates a live owned dedicated index under Memory coordination and rejects uninitialized/cancelled/unhealthy topology before any lifetime change. After successful validation it releases synchronization, destroys the old object, and nothrow-constructs the replacement at the same dedicated address. Occupancy and the caller's index are never modified, shared overflow is never entered, and waiter service is not invoked.
+
+There is deliberately no provider operation after destruction begins, so provider failure cannot leave a successfully validated reset between destruction and replacement construction.
+
 ### `ReleaseDedicatedObject<TObject,TObjectPool>`
 
 **Classification:** PRIVATE IMPLEMENTATION / PUBLIC-FACADE BACKING
