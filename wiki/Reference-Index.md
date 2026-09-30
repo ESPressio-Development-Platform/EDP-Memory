@@ -25,8 +25,8 @@ Every production header under `src/` has a source-derived reference page. Public
 | `src/memory/OwnershipTransfer.hpp` | PUBLIC API | [open](Reference-memory-OwnershipTransfer) |
 | `src/memory/SharedReserveAllocationContract.hpp` | INTERNAL PROVIDER API | [open](Reference-memory-SharedReserveAllocationContract) |
 
-> Latest deep-pass baseline: `35475501654b39cc2b8a9f2032a00e9d30fa3058`.
+> Latest deep-pass baseline: `bf261048c9904bb25bf6b00f57ef6db93708f282`.
 
-## Event V1 indexed-pool tranche
+## Indexed dedicated-pool tranche
 
-No production header was added by the indexed-pool feature. The changed declarations are documented in the existing `ObjectPool`, `MemoryRuntime`, `MemoryTypes`, and `detail/ObjectPoolState` reference pages. This tranche also closed the pre-existing reference omissions for `ObjectLifetime.hpp` and `OwnershipTransfer.hpp`, restoring exhaustive one-page-per-source coverage. Exact source baselines are refreshed after the canonical branch commit.
+No production header was added by the indexed-pool features. The current acquisition/access/reset/release declarations are documented in the existing `ObjectPool`, `MemoryRuntime`, `MemoryTypes`, and `detail/ObjectPoolState` reference pages. The in-place reset extension changed only `ObjectPool`, `MemoryRuntime`, and `MemoryTypes`; those reference pages point to the exact implementation commit. The earlier indexed-pool tranche also closed the pre-existing reference omissions for `ObjectLifetime.hpp` and `OwnershipTransfer.hpp`, preserving exhaustive one-page-per-source coverage.

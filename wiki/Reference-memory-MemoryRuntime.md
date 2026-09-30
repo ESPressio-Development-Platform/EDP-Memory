@@ -2,9 +2,9 @@
 
 **Primary classification:** PUBLIC API
 
-**Source baseline:** `68ba27e5cfc30fdbc43237c4c08557e79f25c5d3`
+**Source baseline:** `bf261048c9904bb25bf6b00f57ef6db93708f282`
 
-[Open exact source](https://github.com/ESPressio-Development-Platform/EDP-Memory/blob/68ba27e5cfc30fdbc43237c4c08557e79f25c5d3/src/memory/MemoryRuntime.hpp)
+[Open exact source](https://github.com/ESPressio-Development-Platform/EDP-Memory/blob/bf261048c9904bb25bf6b00f57ef6db93708f282/src/memory/MemoryRuntime.hpp)
 
 ## Direct includes
 
