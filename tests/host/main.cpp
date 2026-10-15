@@ -608,6 +608,69 @@ namespace {
     }
 
 
+    /// Verifies NoWait entry really cannot block behind the Memory topology mutex.
+    ///
+    /// The holder acquires the actual native test mutex before the attempted pool call.
+    /// If acquisition instead uses Forever it obtains capacity after the holder releases,
+    /// returning Succeeded rather than the required immediate CapacityUnavailable.
+    void TestNoWaitMutexContention() {
+        Resource resource;
+        TestSupport::TestMutexProvider mutex;
+        MemoryComposition::Select<Memory::SharedReserveAllocationRequirement, Framework::SelectUnique> allocator;
+        Runtime runtime(
+            mutex,
+            allocator,
+            resource
+        );
+        Memory::MemoryTopologyInitializationFailure failure;
+        assert(runtime.Initialize(failure) == Memory::MemoryTopologyInitializationResult::Succeeded);
+        auto& pool = runtime.ObjectPoolFor<TestSupport::PooledObject>();
+
+        auto WithHeldCoordination = [&](auto&& action) {
+            std::atomic<bool> holding{false};
+            std::thread holder([&]() {
+                assert(
+                    mutex.Acquire(Platform::Synchronization::WaitTimeout::Forever())
+                    == Platform::Synchronization::LockAcquireResult::Acquired
+                );
+                holding.store(true, std::memory_order_release);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                assert(mutex.Release() == Platform::Synchronization::LockReleaseResult::Released);
+            });
+
+            while (!holding.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            action();
+            holder.join();
+        };
+
+        PooledLease lease;
+        WithHeldCoordination([&]() {
+            assert(
+                pool.Acquire(
+                    lease,
+                    Platform::Synchronization::WaitTimeout::NoWait(),
+                    7
+                ) == Memory::ObjectPoolAcquisitionResult::CapacityUnavailable
+            );
+            assert(lease.IsEmpty());
+        });
+
+        using Pool = Runtime::ObjectPoolType<TestSupport::PooledObject>;
+        Pool::DedicatedIndex index;
+        WithHeldCoordination([&]() {
+            assert(
+                pool.AcquireDedicated(index, 8)
+                == Memory::DedicatedObjectPoolAcquisitionResult::CapacityUnavailable
+            );
+            assert(!index.IsValid());
+        });
+
+        assert(runtime.TearDown() == Memory::MemoryTopologyTeardownResult::Succeeded);
+    }
+
+
     /// Validates compact dedicated-only ownership without a pointer-bearing lease or shared fallback.
     void TestIndexedDedicatedObjectPool() {
         Resource resource;
@@ -1068,6 +1131,9 @@ int main() {
 
     std::fprintf(stderr, "[EDP-Memory] TestObjectPoolLifecycle\n");
     TestObjectPoolLifecycle();
+
+    std::fprintf(stderr, "[EDP-Memory] TestNoWaitMutexContention\n");
+    TestNoWaitMutexContention();
 
     std::fprintf(stderr, "[EDP-Memory] TestIndexedDedicatedObjectPool\n");
     TestIndexedDedicatedObjectPool();

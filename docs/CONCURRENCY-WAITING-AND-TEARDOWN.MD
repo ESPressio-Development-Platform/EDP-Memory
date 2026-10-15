@@ -20,7 +20,7 @@ Acquisition reserves storage under the lock, releases the lock, then constructs.
 
 Every Object Pool acquisition requires an explicit Platform `WaitTimeout`:
 
-- `NoWait` — immediate attempt only;
+- `NoWait` — immediate attempt **including internal topology mutex contention**. A busy mutex returns `CapacityUnavailable`, with no attempted capacity claim or partially published lease;
 - finite — wait at most the requested relative duration;
 - `Forever` — wait indefinitely until targeted capacity handoff/cancellation.
 
@@ -65,3 +65,11 @@ The intended ESPressio ISR discipline is to snapshot the minimum immediate hardw
 ## Developer diagnostics
 
 Stale-object residency monitoring, high-water marks, fragmentation histories, and right-sizing analytics are explicitly deferred developer utilities. They must be opt-in with deterministic documented overhead and must not force core EDP-Memory to depend on EDP-Clock.
+
+## Logging prerequisite: NoWait entry is genuinely nonblocking
+
+`ObjectPool::Acquire(lease, WaitTimeout::NoWait(), ...)` and compact `AcquireDedicated` now ask the single native Platform coordination mutex for `NoWait`, **not Forever**. Contention reports the existing strongly typed `CapacityUnavailable` result, preserves the output lease/index and never inserts a targeted waiter. Genuine native mutex failures remain `ProviderFailure`. Other pool operations and release retain their previous lifetime coordination discipline.
+
+**This is an intentionally scoped prerequisite, not complete D12.1**: finite acquisition still uses the legacy relative Signal wait and internal reacquisition may remain indefinitely blocking. A new EDP-Clock-coherent one-absolute-deadline end-to-end protocol, including safe removal of stack-resident waiter registrations, requires separate careful design/implementation. No claim of finite WaitFor/WaitUntil enforcement is made yet, and no EDP-Memory→EDP-Threading dependency was introduced.
+
+Host `TestNoWaitMutexContention` exercises the held-topology-mutex entrance for both ordinary and indexed dedicated pools. Code/test are committed but **NOT executed** on the occupied appliances.

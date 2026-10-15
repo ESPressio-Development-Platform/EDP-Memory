@@ -190,11 +190,17 @@ namespace ESPressio::Memory::Detail {
 
             // Coordination lock.
 
-            /// Acquires the topology coordination mutex indefinitely.
-            ESPressio::Platform::Synchronization::LockAcquireResult AcquireCoordinationLock() noexcept {
-                return _mutex->Acquire(
+            /// Acquires the topology coordination mutex under an explicit native wait policy.
+            ///
+            /// Ordinary lifecycle/reclamation callers retain Forever as their prior behaviour.
+            /// Acquisition entrance paths may request NoWait, avoiding hidden blocking behind
+            /// this topology lock. Finite absolute-deadline acquisition remains a separate
+            /// prerequisite and must not be falsely implied by this overload.
+            ESPressio::Platform::Synchronization::LockAcquireResult AcquireCoordinationLock(
+                ESPressio::Platform::Synchronization::WaitTimeout timeout =
                     ESPressio::Platform::Synchronization::WaitTimeout::Forever()
-                );
+            ) noexcept {
+                return _mutex->Acquire(timeout);
             }
 
             /// Releases the topology coordination mutex.
@@ -848,11 +854,13 @@ namespace ESPressio::Memory::Detail {
                     return DedicatedObjectPoolAcquisitionResult::ProviderFailure;
                 }
 
-                if (
-                    AcquireCoordinationLock() !=
-                    ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
-                ) {
-                    return DedicatedObjectPoolAcquisitionResult::ProviderFailure;
+                const auto coordinationResult = AcquireCoordinationLock(
+                    ESPressio::Platform::Synchronization::WaitTimeout::NoWait()
+                );
+                if (coordinationResult != ESPressio::Platform::Synchronization::LockAcquireResult::Acquired) {
+                    return coordinationResult == ESPressio::Platform::Synchronization::LockAcquireResult::TimedOut
+                        ? DedicatedObjectPoolAcquisitionResult::CapacityUnavailable
+                        : DedicatedObjectPoolAcquisitionResult::ProviderFailure;
                 }
 
                 if (
@@ -1118,11 +1126,15 @@ namespace ESPressio::Memory::Detail {
 
                 if (_coordinationFailed) { return ObjectPoolAcquisitionResult::ProviderFailure; }
 
-                if (
-                    AcquireCoordinationLock() !=
-                    ESPressio::Platform::Synchronization::LockAcquireResult::Acquired
-                ) {
-                    return ObjectPoolAcquisitionResult::ProviderFailure;
+                const auto entranceResult = AcquireCoordinationLock(
+                    timeout.IsNoWait()
+                        ? ESPressio::Platform::Synchronization::WaitTimeout::NoWait()
+                        : ESPressio::Platform::Synchronization::WaitTimeout::Forever()
+                );
+                if (entranceResult != ESPressio::Platform::Synchronization::LockAcquireResult::Acquired) {
+                    return entranceResult == ESPressio::Platform::Synchronization::LockAcquireResult::TimedOut
+                        ? ObjectPoolAcquisitionResult::CapacityUnavailable
+                        : ObjectPoolAcquisitionResult::ProviderFailure;
                 }
 
                 if (

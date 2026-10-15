@@ -107,3 +107,7 @@ This keeps functional validation independent from host-toolchain sanitizer-runti
 ## C++ Language Baseline
 
 ESPressio requires C++20. PlatformIO-compatible ESP32 demos use the maintained PIOArduino platform package so Arduino-ESP32 and ESP-IDF builds use a current C++20-capable toolchain baseline.
+
+## Logging prerequisite — true NoWait pool entry (feature/logging-v1)
+
+NoWait ObjectPool acquisition and compact AcquireDedicated now use the underlying Platform coordination Mutex's immediate policy instead of risking hidden indefinite lock contention; contention returns existing `CapacityUnavailable` without granting a lease. This does **not** yet provide an end-to-end canonical monotonic deadline for finite waits, since targeted Signal waits and their required safe stack-request cleanup are still legacy. See [Concurrency/Waiting](./docs/CONCURRENCY-WAITING-AND-TEARDOWN.MD). All versions remain `0.1.0`; tests have been authored but are NOT EXECUTED.

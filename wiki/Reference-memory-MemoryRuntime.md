@@ -683,3 +683,9 @@ Coordinates `ObjectPool::ReleaseDedicated`. It validates occupancy under synchro
 
 If synchronization fails after destruction, `_coordinationFailed` is set and the index is invalidated so a caller cannot validly retry and invoke the destructor twice. This is a fatal provider/coordinator condition rather than a recoverable capacity result.
 
+
+## Bounded-admission prerequisite — NoWait topology entrance
+
+The private `AcquireCoordinationLock(WaitTimeout timeout = WaitTimeout::Forever())` now accepts an explicitly selected native wait mechanism without creating a new permanent resource. `AcquireObject(...NoWait)` passes `NoWait` for its initial coordination attempt; `AcquireDedicatedObject` also passes `NoWait`. A contested coordination Mutex produces `ObjectPoolAcquisitionResult::CapacityUnavailable` or `DedicatedObjectPoolAcquisitionResult::CapacityUnavailable` (not a fake `ProviderFailure`), and leaves any caller-owned output unchanged. Native provider failures remain distinct.
+
+The public relative finite `ObjectPool::Acquire` semantics still do **not** guarantee one absolute EDP-Clock deadline when re-acquiring the mutex to resolve a stack-local waiter. That prerequisite is open; new source must not shortcut stack waiter removal or introduce a dangling wait-list pointer. The tests/host/main.cpp `TestNoWaitMutexContention` is authored but not executed. No dependency on EDP-Threading.
