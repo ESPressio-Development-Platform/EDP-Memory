@@ -48,6 +48,8 @@ EDP-Memory does not depend on EDP-Clock; finite waiting uses the Platform Signal
 
 Cancellation never destroys existing pooled objects. New acquisitions remain unavailable until the topology has been completely torn down/reinitialized.
 
+**G1 #16 partial safety correction:** the runtime now counts waiter-bearing acquisition calls independently of the intrusive wait-list. Detaching a cancelled/granted waiter does **not** constitute retirement; `TearDown()` refuses with `PendingAcquisitionsRemain` while any such caller has not finished locked request resolution. The counter is bounded to a single runtime word and is maintained under the existing topology Mutex; no per-waiter heap allocation is introduced. The dedicated `g1_in_flight_teardown.cpp` regression holds a cancelled caller in its Signal wait and requires teardown to fail closed until it returns. This does **not** repair failed-relock stack-pointer lifetime, unknown failed-unlock ownership or the full canonical finite deadline: G1 remains open.
+
 Final teardown still requires all leases/live objects to have been released.
 
 ## Provider failures

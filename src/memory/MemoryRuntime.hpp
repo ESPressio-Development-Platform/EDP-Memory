@@ -158,6 +158,10 @@ namespace ESPressio::Memory::Detail {
             /// Last pending waiter in arrival order.
             WaitRequestType* _waitTail = nullptr;
 
+            /// Acquisition calls whose waiter state is still live, including unlinked cancelled/granted requests.
+            /// Guarded exclusively by the topology coordination mutex; zero is necessary for teardown.
+            std::size_t _inFlightWaiters = 0U;
+
             /// Current topology lifecycle state.
             MemoryTopologyState _state = MemoryTopologyState::Uninitialized;
 
@@ -574,6 +578,7 @@ namespace ESPressio::Memory::Detail {
                 }
 
                 _state = MemoryTopologyState::Initializing;
+                _inFlightWaiters = 0U;
                 _acquisitionsCancelled = false;
                 _coordinationFailed = false;
                 failure = MemoryTopologyInitializationFailure{};
@@ -716,7 +721,7 @@ namespace ESPressio::Memory::Detail {
                     return MemoryTopologyTeardownResult::TopologyUnavailable;
                 }
 
-                if (_waitHead != nullptr) {
+                if (_waitHead != nullptr || _inFlightWaiters != 0U) {
                     static_cast<void>(
                         ReleaseCoordinationLock()
                     );
@@ -1201,6 +1206,7 @@ namespace ESPressio::Memory::Detail {
                 WaitRequestType request;
                 request.ObjectPoolIndex = TTopology::template ObjectPoolIndex<TObject>;
                 AppendWaitRequest(request);
+                ++_inFlightWaiters;
 
                 if (
                     ReleaseCoordinationLock() !=
@@ -1223,6 +1229,7 @@ namespace ESPressio::Memory::Detail {
 
                 if (request.State == WaitRequestState::Granted) {
                     token = request.Token;
+                    --_inFlightWaiters;
 
                     if (
                         ReleaseCoordinationLock() !=
@@ -1250,6 +1257,7 @@ namespace ESPressio::Memory::Detail {
                 }
 
                 if (request.State == WaitRequestState::Cancelled) {
+                    --_inFlightWaiters;
                     const auto releaseResult = ReleaseCoordinationLock();
 
                     return releaseResult == ESPressio::Platform::Synchronization::LockReleaseResult::Released
@@ -1258,6 +1266,7 @@ namespace ESPressio::Memory::Detail {
                 }
 
                 if (request.State == WaitRequestState::ProviderFailure) {
+                    --_inFlightWaiters;
                     static_cast<void>(
                         ReleaseCoordinationLock()
                     );
@@ -1265,6 +1274,7 @@ namespace ESPressio::Memory::Detail {
                 }
 
                 RemoveWaitRequest(request);
+                --_inFlightWaiters;
                 const auto releaseResult = ReleaseCoordinationLock();
 
                 if (

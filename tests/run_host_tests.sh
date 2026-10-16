@@ -55,26 +55,38 @@ compile_object_lifetime_tests() {
         -o "${BUILD_DIR}/object-lifetime-tests"
 }
 
+compile_in_flight_teardown_regression() {
+    "${CXX}" \
+        "${COMMON_FLAGS[@]}" \
+        "$@" \
+        "${ROOT_DIR}/tests/host/g1_in_flight_teardown.cpp" \
+        -o "${BUILD_DIR}/in-flight-teardown-tests"
+}
+
 case "${SANITIZER_MODE}" in
     "")
         echo "EDP-Memory host runtime tests: compiling"
         compile_host_tests
         compile_object_lifetime_tests
+        compile_in_flight_teardown_regression
         ;;
     address)
         echo "EDP-Memory host runtime tests: compiling (ASan)"
         compile_host_tests -g -fno-omit-frame-pointer -fsanitize=address
         compile_object_lifetime_tests -g -fno-omit-frame-pointer -fsanitize=address
+        compile_in_flight_teardown_regression -g -fno-omit-frame-pointer -fsanitize=address
         ;;
     undefined)
         echo "EDP-Memory host runtime tests: compiling (UBSan)"
         compile_host_tests -g -fno-omit-frame-pointer -fsanitize=undefined
         compile_object_lifetime_tests -g -fno-omit-frame-pointer -fsanitize=undefined
+        compile_in_flight_teardown_regression -g -fno-omit-frame-pointer -fsanitize=undefined
         ;;
     address,undefined)
         echo "EDP-Memory host runtime tests: compiling (ASan+UBSan)"
         compile_host_tests -g -fno-omit-frame-pointer -fsanitize=address,undefined
         compile_object_lifetime_tests -g -fno-omit-frame-pointer -fsanitize=address,undefined
+        compile_in_flight_teardown_regression -g -fno-omit-frame-pointer -fsanitize=address,undefined
         ;;
     *)
         echo "Unsupported EDP_MEMORY_SANITIZER_MODE: ${SANITIZER_MODE}" >&2
@@ -92,9 +104,13 @@ if [[ -n "${SANITIZER_MODE}" ]]; then
     ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:abort_on_error=1}" \
     UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}" \
         "${BUILD_DIR}/object-lifetime-tests"
+    ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:abort_on_error=1}" \
+    UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}" \
+        "${BUILD_DIR}/in-flight-teardown-tests"
 else
     "${BUILD_DIR}/host-tests"
     "${BUILD_DIR}/object-lifetime-tests"
+    "${BUILD_DIR}/in-flight-teardown-tests"
 fi
 
 echo "EDP-Memory compile-fail tests: validating"

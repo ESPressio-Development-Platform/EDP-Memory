@@ -1,7 +1,7 @@
-// G1 #16 regression reproducer: detached cancellation must not allow premature teardown.
-// Intentionally fails against feature/logging-v1 until in-flight acquisition retirement is tracked.
+// G1 #16 regression: detached cancellation cannot allow premature teardown.
+// The runtime must retain teardown ownership until each cancelled acquisition exits.
 #define main EDP_MEMORY_PRIOR_HOST_SUITE
-#include "../host/main.cpp"
+#include "main.cpp"
 #undef main
 
 class PausedSignalProvider final : public Framework::Provider<
