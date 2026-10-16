@@ -21,7 +21,7 @@ Acquisition reserves storage under the lock, releases the lock, then constructs.
 Every Object Pool acquisition requires an explicit Platform `WaitTimeout`:
 
 - `NoWait` — immediate attempt **including internal topology mutex contention**. A busy mutex returns `CapacityUnavailable`, with no attempted capacity claim or partially published lease;
-- finite — wait at most the requested relative duration;
+- finite — the first topology-mutex attempt uses the requested bounded relative duration and returns `TimedOut` if the mutex cannot be acquired. **The entire finite acquisition is NOT YET end-to-end deadline-safe**: subsequent Signal waiting and cleanup/reacquisition can still exceed the budget;
 - `Forever` — wait indefinitely until targeted capacity handoff/cancellation.
 
 There is no overload with a hidden blocking policy.

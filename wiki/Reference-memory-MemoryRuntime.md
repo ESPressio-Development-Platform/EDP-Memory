@@ -249,7 +249,7 @@ template<class TMemoryResourceProvider>
 
 **Classification:** PRIVATE IMPLEMENTATION · source access: `private`
 
-Acquires the topology coordination mutex indefinitely.
+Acquires the topology coordination mutex using the caller-selected Platform wait policy, defaulting to `Forever` only when no explicit policy is supplied. The finite entrance is bounded by the supplied relative timeout; the full acquisition's absolute deadline/lifetime safety is still open under G1 #16.
 
 ```cpp
 ESPressio::Platform::Synchronization::LockAcquireResult AcquireCoordinationLock() noexcept
@@ -688,4 +688,4 @@ If synchronization fails after destruction, `_coordinationFailed` is set and the
 
 The private `AcquireCoordinationLock(WaitTimeout timeout = WaitTimeout::Forever())` now accepts an explicitly selected native wait mechanism without creating a new permanent resource. `AcquireObject(...NoWait)` passes `NoWait` for its initial coordination attempt; `AcquireDedicatedObject` also passes `NoWait`. A contested coordination Mutex produces `ObjectPoolAcquisitionResult::CapacityUnavailable` or `DedicatedObjectPoolAcquisitionResult::CapacityUnavailable` (not a fake `ProviderFailure`), and leaves any caller-owned output unchanged. Native provider failures remain distinct.
 
-The public relative finite `ObjectPool::Acquire` semantics still do **not** guarantee one absolute EDP-Clock deadline when re-acquiring the mutex to resolve a stack-local waiter. That prerequisite is open; new source must not shortcut stack waiter removal or introduce a dangling wait-list pointer. The tests/host/main.cpp `TestNoWaitMutexContention` is authored but not executed. No dependency on EDP-Threading.
+`AcquireObject` now passes `Finite` directly to the **initial** Platform Mutex acquisition, returning the existing `ObjectPoolAcquisitionResult::TimedOut` for a genuine entrance timeout; `NoWait` still returns `CapacityUnavailable` on mutex contention. `TestFiniteMutexEntranceDeadline` and `TestNoWaitMutexContention` are host regressions. The complete public finite acquisition still **does not guarantee** one absolute EDP-Clock deadline or safe retirement of stack-resident waiters after failed relock; G1 #16 remains open, with deterministic unsafe-teardown reproduction in the Policy/main handoff. No dependency on EDP-Threading.

@@ -1127,14 +1127,16 @@ namespace ESPressio::Memory::Detail {
                 if (_coordinationFailed) { return ObjectPoolAcquisitionResult::ProviderFailure; }
 
                 const auto entranceResult = AcquireCoordinationLock(
-                    timeout.IsNoWait()
-                        ? ESPressio::Platform::Synchronization::WaitTimeout::NoWait()
-                        : ESPressio::Platform::Synchronization::WaitTimeout::Forever()
+                    timeout
                 );
                 if (entranceResult != ESPressio::Platform::Synchronization::LockAcquireResult::Acquired) {
-                    return entranceResult == ESPressio::Platform::Synchronization::LockAcquireResult::TimedOut
-                        ? ObjectPoolAcquisitionResult::CapacityUnavailable
-                        : ObjectPoolAcquisitionResult::ProviderFailure;
+                    if (entranceResult == ESPressio::Platform::Synchronization::LockAcquireResult::TimedOut) {
+                        return timeout.IsFinite()
+                            ? ObjectPoolAcquisitionResult::TimedOut
+                            : ObjectPoolAcquisitionResult::CapacityUnavailable;
+                    }
+
+                    return ObjectPoolAcquisitionResult::ProviderFailure;
                 }
 
                 if (

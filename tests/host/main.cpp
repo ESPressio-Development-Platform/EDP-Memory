@@ -671,6 +671,52 @@ namespace {
     }
 
 
+    /// Ensures one finite attempt does not wait indefinitely for the initial topology mutex.
+    ///
+    /// This tests only the entrance budget: the complete wait-queue lifetime and shared
+    /// absolute-deadline protocol remain separate G1 #16 prerequisites.
+    void TestFiniteMutexEntranceDeadline() {
+        Resource resource;
+        TestSupport::TestMutexProvider mutex;
+        MemoryComposition::Select<Memory::SharedReserveAllocationRequirement, Framework::SelectUnique> allocator;
+        Runtime runtime(
+            mutex,
+            allocator,
+            resource
+        );
+        Memory::MemoryTopologyInitializationFailure failure;
+        assert(runtime.Initialize(failure) == Memory::MemoryTopologyInitializationResult::Succeeded);
+
+        std::atomic<bool> holding{false};
+        std::thread holder([&]() {
+            assert(
+                mutex.Acquire(Platform::Synchronization::WaitTimeout::Forever())
+                == Platform::Synchronization::LockAcquireResult::Acquired
+            );
+            holding.store(true, std::memory_order_release);
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            assert(mutex.Release() == Platform::Synchronization::LockReleaseResult::Released);
+        });
+
+        while (!holding.load(std::memory_order_acquire)) {
+            std::this_thread::yield();
+        }
+
+        auto& pool = runtime.ObjectPoolFor<TestSupport::DedicatedOnlyObject>();
+        Runtime::ObjectPoolType<TestSupport::DedicatedOnlyObject>::LeaseType lease;
+        const auto result = pool.Acquire(
+            lease,
+            Platform::Synchronization::WaitTimeout::ForNanoseconds(10'000'000ULL),
+            55
+        );
+        holder.join();
+
+        assert(result == Memory::ObjectPoolAcquisitionResult::TimedOut);
+        assert(lease.IsEmpty());
+        assert(runtime.TearDown() == Memory::MemoryTopologyTeardownResult::Succeeded);
+    }
+
+
     /// Validates compact dedicated-only ownership without a pointer-bearing lease or shared fallback.
     void TestIndexedDedicatedObjectPool() {
         Resource resource;
@@ -1134,6 +1180,9 @@ int main() {
 
     std::fprintf(stderr, "[EDP-Memory] TestNoWaitMutexContention\n");
     TestNoWaitMutexContention();
+
+    std::fprintf(stderr, "[EDP-Memory] TestFiniteMutexEntranceDeadline\n");
+    TestFiniteMutexEntranceDeadline();
 
     std::fprintf(stderr, "[EDP-Memory] TestIndexedDedicatedObjectPool\n");
     TestIndexedDedicatedObjectPool();
