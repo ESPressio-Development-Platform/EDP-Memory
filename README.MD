@@ -12,6 +12,9 @@ Its purpose is to make memory cost an application design decision: application B
 - [Typed Object Lifetime Operations](./docs/OBJECT-LIFETIME-OPERATIONS.MD)  
   Defines allocation-free typed construction, move-construction/ownership transfer, and destruction in caller-supplied storage.
 
+- [Ownership Transfer](./docs/OWNERSHIP-TRANSFER.MD)
+  Explains typed ownership handoff through the existing Memory helper without allocating or duplicating object-lifetime operations.
+
 - [Memory Topology](./docs/MEMORY-TOPOLOGY.MD)  
   Defines compile-time Object Pool configuration, resource binding, transactional initialization, topology freeze, and mode-transition teardown.
 
