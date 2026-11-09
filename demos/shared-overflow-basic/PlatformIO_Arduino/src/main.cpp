@@ -1,7 +1,8 @@
 #include <Arduino.h>
 
 #include <ESPressio_Memory.hpp>
-#include <ESPressio_Platform_Portable.hpp>
+#include <ESPressio_Platform_FreeRTOS.hpp>
+#include <ESPressio_Platform_Portable_MemoryResource.hpp>
 
 namespace Demo {
 
@@ -34,8 +35,8 @@ namespace Demo {
 
 
     using Resource = ESPressio::Platform::Portable::Memory::MemoryResourceProvider;
-    using Mutex = ESPressio::Platform::Portable::Synchronization::MutexProvider;
-    using Signal = ESPressio::Platform::Portable::Synchronization::SignalProvider;
+    using Mutex = ESPressio::Platform::FreeRTOS::Synchronization::MutexProvider;
+    using Signal = ESPressio::Platform::FreeRTOS::Synchronization::SignalProvider;
 
     using ValuePoolSpec = ESPressio::Memory::ObjectPoolSpec<
         Value,
