@@ -2,7 +2,7 @@
 
 `EDP-Memory` supplies **five** focused examples:
 
-- `memory-operations-basic` — stateless raw ByteOperations with the narrow `<ESPressio_Platform_Portable_ByteOperations.hpp>` root.
+- `memory-operations-basic` — stateless raw ByteOperations plus explicitly allocated/released aligned MemoryResource, imported through **both** corresponding narrow Portable public root headers.
 - `object-pool-basic` — finite compile-time topology, dedicated Object Pool and typed lease/index ownership.
 - `indexed-object-pool-basic` — compact one-byte dedicated-slot identity, safe nothrow reset and stable address (no shared overflow).
 - `shared-overflow-basic` — dedicated-first allocation, finite shared reserve, capacity backpressure.

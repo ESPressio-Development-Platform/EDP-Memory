@@ -5,6 +5,7 @@
 
 #include <ESPressio_Memory.hpp>
 #include <ESPressio_Platform_Portable_ByteOperations.hpp>
+#include <ESPressio_Platform_Portable_MemoryResource.hpp>
 
 namespace Demo {
 
