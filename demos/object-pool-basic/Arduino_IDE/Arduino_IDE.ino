@@ -2,7 +2,7 @@
 
 #include <ESPressio_Memory.hpp>
 #include <ESPressio_Platform_FreeRTOS.hpp>
-#include <memory/MemoryResourceProvider.hpp>
+#include <ESPressio_Platform_Portable_MemoryResource.hpp>
 
 namespace Demo {
 

@@ -4,7 +4,7 @@
 #include <cstdint>
 
 #include <ESPressio_Memory.hpp>
-#include <ESPressio_Platform_Portable.hpp>
+#include <ESPressio_Platform_Portable_ByteOperations.hpp>
 
 namespace Demo {
 
