@@ -93,6 +93,12 @@ Initialization is synchronous, sequential, and all-or-nothing. A configured topo
 
 Complete teardown is first-class. It refuses while live pooled objects remain. Once all consumers have shut down and all leases have been released, one topology may be destroyed completely and another compile-time topology may be initialized, supporting bounded mode transitions such as normal operation to OTA-specific operation.
 
+## Demonstrations and concrete provider selection
+
+The [five buildable demo families](./demos/README.MD) cover Arduino IDE, PlatformIO Arduino and PlatformIO ESP-IDF. They select the existing target-appropriate concrete owners explicitly: portable Standard C++ memory resources through the narrow `<ESPressio_Platform_Portable_MemoryResource.hpp>` entry point, FreeRTOS synchronization through `<ESPressio_Platform_FreeRTOS.hpp>` for ESP32 Object Pools, and the existing narrow `<ESPressio_Platform_Portable_ByteOperations.hpp>` for raw byte operations. The broad Portable umbrella cannot be assumed valid on ESP32 toolchains which do not satisfy its `AtomicWord32` lock-free contract or disable exceptions. These are application/demo-only concrete dependencies, not new dependencies of the abstract EDP-Memory library.
+
+**Safety boundary:** the direct native finite `ObjectPool::Acquire(Finite)` waiter lifetime and end-to-end deadline remain under [EDP-Memory #16](https://github.com/ESPressio-Development-Platform/EDP-Memory/issues/16); passing NoWait or bounded Threading integration does not qualify the direct finite-wait path under all provider failures.
+
 ## Testing
 
 Host coverage validates typed object lifetime operations, the default shared allocator, pool lifetime, compact indexed dedicated ownership/reset, quotas, waiting/cancellation, rollback, teardown/reinitialize, compact lease/index representation, and compile-fail topology/lifetime constraints. Platform concrete providers maintain their own provider-specific coverage in their owning repositories.

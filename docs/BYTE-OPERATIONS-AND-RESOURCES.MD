@@ -53,3 +53,9 @@ EDP-Memory does not know PSRAM names, ESP-IDF capability flags, or physical plac
 Where one concrete provider implements “external preferred, internal fallback”, that policy remains inside the provider. This preserves one coherent allocate/release owner and avoids storing provider identity in every `MemoryBlock`.
 
 If an application requires guaranteed placement rather than preference, Bootstrap selects a provider whose own documented contract guarantees that placement.
+
+## ESP32 demonstrations: narrow public imports and correct concrete selection
+
+A consuming sketch can select the existing Standard C++ `Portable::Memory::MemoryResourceProvider` via the **new root public** `<ESPressio_Platform_Portable_MemoryResource.hpp>`, rather than an internal nested header or the broad `ESPressio_Platform_Portable.hpp`. The latter imposes unrelated Portable AtomicWord32 and synchronization requirements; the former is a single-purpose header, not a new allocator or EDP-Memory dependency. The native ESP32 examples select FreeRTOS Mutex/Signal providers separately through their owning `<ESPressio_Platform_FreeRTOS.hpp>` public root and declare FreeRTOS directly in the application's manifest. This avoids selecting Standard C++ synchronization on an ESP-IDF configuration that disables C++ exceptions.
+
+Only applications and demos name those concrete repositories; EDP-Memory's library.json contains its **abstract** System/Platform/BoundedTopology direct dependencies. This distinction is necessary for both Arduino library discovery and deterministic explicit Bootstrap ownership. The narrow root does not alter allocation lifetime, no-throw/failure semantics, or the existing fixed topology rules.

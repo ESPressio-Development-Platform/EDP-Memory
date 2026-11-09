@@ -43,3 +43,7 @@ The topology's default resource, shared-reserve resource and any explicitly sele
 ## Lifetime/resource boundary
 
 Bootstrap owns all provider instances. MemoryRuntime owns topology bookkeeping/pools and borrows the selected resource/synchronization providers. Indexed dedicated consumers retain only a strong slot index; they do not own the backing allocation.
+
+## Optional application/demo concrete owner edges (9 November 2026)
+
+These concrete selections belong to a **consumer application**, not to the abstract EDP-Memory package: Portable Standard C++ MemoryResource is imported by `<ESPressio_Platform_Portable_MemoryResource.hpp>`; native ESP32 FreeRTOS Mutex and Signal by `<ESPressio_Platform_FreeRTOS.hpp>`; and pure ByteOperations by the narrow Portable ByteOperations entry point. The required package edge must be explicit in each application's manifest. A broad umbrella would improperly impose unrelated AtomicWord32 lock-free and Standard C++ exception constraints. EDP-Memory does not depend back on either concrete repository; the source-qualified dependency graph remains acyclic.

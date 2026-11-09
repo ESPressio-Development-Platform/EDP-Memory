@@ -27,3 +27,7 @@ Concrete providers which satisfy `EDP-Memory` capabilities are selected by appli
 ## Circular-dependency audit
 
 The new `EDP-Memory -> EDP-BoundedTopology` edge is acyclic. `EDP-BoundedTopology` currently owns only finite identity/membership/topology values and has no dependency back to EDP-Memory.
+
+## Demo-only concrete provider edges (9 November 2026)
+
+The `demos/` applications are **consumers** of the abstract EDP-Memory library, not new dependencies of EDP-Memory itself. Where each ESP32 demo activates the Standard C++ resource concrete, the **application** directly declares `EDP-Platform-Portable#main` and uses its narrow root `ESPressio_Platform_Portable_MemoryResource.hpp`; where a demo activates native Mutex/Signal, it additionally declares `EDP-Platform-FreeRTOS#main`. Raw ByteOperations demos activate only the Portable narrow ByteOperations entry point. The selected concrete libraries depend **toward** EDP-Memory/Platform, never the reverse. This graph remains acyclic with mandatory System/Platform/BoundedTopology only; no invisible transitive edge or unsupported portable AtomicWord32 contract is imposed by the abstract library.
