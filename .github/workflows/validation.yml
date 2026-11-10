@@ -57,8 +57,14 @@ jobs:
       - name: Install PlatformIO
         run: python -m pip install --upgrade platformio
 
-      - name: Build indexed Object Pool Arduino demo with PIOArduino platform
-        run: pio run -d demos/indexed-object-pool-basic/PlatformIO_Arduino
-
-      - name: Build indexed Object Pool ESP-IDF demo with PIOArduino platform
-        run: pio run -d demos/indexed-object-pool-basic/PlatformIO_ESP-IDF
+      - name: Build all five demo families for Arduino-ESP32 and ESP-IDF
+        shell: bash
+        run: |
+          set -euo pipefail
+          # All provider selections must compile through published owner packages.
+          for family in indexed-object-pool-basic memory-operations-basic object-pool-basic shared-overflow-basic topology-teardown-basic; do
+            for target in PlatformIO_Arduino PlatformIO_ESP-IDF; do
+              echo "BUILD ${family} / ${target}"
+              pio run -d "demos/${family}/${target}"
+            done
+          done
