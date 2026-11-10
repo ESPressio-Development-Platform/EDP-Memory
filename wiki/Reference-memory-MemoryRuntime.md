@@ -191,6 +191,16 @@ Last pending waiter in arrival order.
 WaitRequestType* _waitTail = nullptr;
 ```
 
+### `_inFlightWaiters`
+
+**Classification:** PRIVATE IMPLEMENTATION · source access: `private`
+
+Authoritative **count of waiter-bearing acquisition calls whose stack-resident request has not yet completed safely under the topology mutex**. It includes requests already detached from the intrusive queue by grant or cancellation but not yet acknowledged by the returning caller. Incremented only when a caller links a request under the coordination mutex; decremented when the caller reacquires and resolves the request while still holding that mutex. `TearDown()` must refuse when nonzero, even if `_waitHead` is empty, preventing one premature teardown class. **This counter is not a lifetime-owning allocation**: a failed unlock/relock path can still return with a pointer to the caller's invalidated stack request; it is not a replacement for issue #16's unresolved waiter-lifetime safety and one-end-to-end-deadline contract.
+
+```cpp
+std::size_t _inFlightWaiters = 0U;
+```
+
 ### `_state`
 
 **Classification:** PRIVATE IMPLEMENTATION · source access: `private`
@@ -252,7 +262,7 @@ template<class TMemoryResourceProvider>
 Acquires the topology coordination mutex using the caller-selected Platform wait policy, defaulting to `Forever` only when no explicit policy is supplied. The finite entrance is bounded by the supplied relative timeout; the full acquisition's absolute deadline/lifetime safety is still open under G1 #16.
 
 ```cpp
-ESPressio::Platform::Synchronization::LockAcquireResult AcquireCoordinationLock() noexcept
+ESPressio::Platform::Synchronization::LockAcquireResult AcquireCoordinationLock(\n    ESPressio::Platform::Synchronization::WaitTimeout timeout =\n        ESPressio::Platform::Synchronization::WaitTimeout::Forever()\n) noexcept
 ```
 
 ### `ReleaseCoordinationLock`
